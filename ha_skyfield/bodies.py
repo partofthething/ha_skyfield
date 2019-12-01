@@ -53,6 +53,9 @@ class Sky:  # pylint: disable=too-many-instance-attributes
 
     def _compute_solstice_paths(self):
         """Compute solar paths at winter and summer solstices."""
+
+        # interestingly, these cached paths tend to disappear
+        # with time in a homeassistant run.
         today = datetime.datetime.today()
         winter = datetime.datetime(today.year, 12, 21)
         summer = datetime.datetime(today.year, 6, 21)
@@ -90,6 +93,8 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         # data for lines
         today = datetime.datetime.today()
         today_sunpath = self._compute_daily_path(self._planets[SUN], today)
+        # this shouldn't be necessary but hass loses the data somehow!?
+        self._compute_solstice_paths()
 
         plots.plot_sky(
             today_sunpath, self._winter_data, self._summer_data, points, fname
