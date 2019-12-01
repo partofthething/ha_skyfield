@@ -13,7 +13,7 @@ This uses the [skyfield library](https://rhodesmill.org/skyfield/) to do the com
 To use: 
 
 * Install this in your `custom_components` folder
-* Download the prerequisides: `pip3 install skyfield matplotlib numpy`
+* Download the prerequisites: `pip3 install skyfield matplotlib numpy`
 * Add the following to your home assistant config:
 ```yaml
 camera:
