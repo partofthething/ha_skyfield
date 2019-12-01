@@ -1,5 +1,7 @@
 # Live Sun, Moon, and Planets for Home Assistant
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/partofthething/ha_skyfield)
+
 This is a custom component for [Home Assistant ](https://www.home-assistant.io/) 
 that makes a live polar sun path chart for your location. Besides the Sun, it
 also shows the Moon and a few major planets. Plus, it shows the Winter and Summer solstice sun paths so you can see where you are in the seasons!

@@ -1,0 +1,7 @@
+{
+  "name": "Skyfield panel with Sun, Moon, and planets",
+  "domains": ["camera"],
+  "homeassistant": "0.100.1",
+  "render_readme": true,
+  "content_in_root": false
+}
