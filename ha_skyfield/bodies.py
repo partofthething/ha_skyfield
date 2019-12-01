@@ -76,12 +76,11 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         data = []
         for interval in range(24 * 3 + 1):
             now = day + delta * interval
-            print(now)
             azi, alt = self._compute_position(body, now)
             data.append((azi, alt))
         return zip(*data)
 
-    def plot_current_sky(self, fname=None):
+    def plot_current_sky(self, output=None):
         """Try sun plot with skyfield lib instead."""
 
         now = datetime.datetime.now()  # - datetime.timedelta(hours=8)
@@ -97,5 +96,5 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         self._compute_solstice_paths()
 
         plots.plot_sky(
-            today_sunpath, self._winter_data, self._summer_data, points, fname
+            today_sunpath, self._winter_data, self._summer_data, points, output
         )

@@ -14,11 +14,10 @@ To use:
 * Download the prerequisides: `pip3 install skyfield matplotlib numpy`
 * Add the following to your home assistant config:
 ```yaml
-sensors:
+camera:
     platform: ha_skyfield
 ```
-* Add a picture entity to your GUI with `image-path` set to `/local/sun.png`. This
-  component write the file to that location every 1 minute.
+* Add a picture entity to your GUI with this camera. It will update live.
 
 Inspiration comes from the University of Oregon 
 [Solar Radiation Monitoring Lab](http://solardat.uoregon.edu/PolarSunChartProgram.html).
