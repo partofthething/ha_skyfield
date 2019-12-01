@@ -25,7 +25,7 @@ def plot_all_sun_paths(data):
     plt.show()
 
 
-def plot_sky(today, winter, summer, points, output=None):
+def plot_sky(today, winter, summer, points, output=None, timelabel=None):
     """Make a figure with the sky and various planets/sun/moon."""
     visible = [np.linspace(0, 2 * np.pi, 200), [90.0 for _i in range(200)]]
 
@@ -49,10 +49,11 @@ def plot_sky(today, winter, summer, points, output=None):
     ax.set_thetagrids(
         np.linspace(0, 360.0, 9), ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
     )
-    ax.annotate(str(datetime.datetime.now()),
-            xy=(.09, .07), xycoords='figure fraction',
-            horizontalalignment='left', verticalalignment='top',
-            fontsize=8)
+    if timelabel:
+        ax.annotate(timelabel,
+                xy=(.09, .07), xycoords='figure fraction',
+                horizontalalignment='left', verticalalignment='top',
+                fontsize=8)
     plt.tight_layout()
     if output is None:
         plt.show()

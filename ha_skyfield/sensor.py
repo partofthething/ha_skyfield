@@ -67,4 +67,4 @@ class SkyField(Entity):
             self.sky.load(self._tmpdir)
             self._loaded = True
         _LOGGER.debug("Updating skyfield plot")
-        self.sky.plot_current_sky(os.path.join(self._configdir, "www", "sun.png"))
+        self.sky.plot_sky(os.path.join(self._configdir, "www", "sun.png"))

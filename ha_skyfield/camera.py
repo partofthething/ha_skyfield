@@ -78,6 +78,6 @@ class SkyFieldCam(Camera):
             self._loaded = True
         _LOGGER.debug("Updating skyfield plot")
         buf = io.BytesIO()
-        self.sky.plot_current_sky(buf)
+        self.sky.plot_sky(buf)
         buf.seek(0)
         return buf.getvalue()

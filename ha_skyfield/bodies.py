@@ -78,23 +78,21 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             now = day + delta * interval
             azi, alt = self._compute_position(body, now)
             data.append((azi, alt))
-        return zip(*data)
+        return list(zip(*data))
 
-    def plot_current_sky(self, output=None):
+    def plot_sky(self, output=None, when=None):
         """Try sun plot with skyfield lib instead."""
-
-        now = datetime.datetime.now()  # - datetime.timedelta(hours=8)
-        self.sun_position = self._compute_position(self._planets[SUN], now)
+        if when is None:
+            when = datetime.datetime.now()
+        self.sun_position = self._compute_position(self._planets[SUN], when)
         points = [self.sun_position]
         for body in [MOON, VENUS, MARS, JUPITER, SATURN]:
-            points.append(self._compute_position(self._planets[body], now))
+            points.append(self._compute_position(self._planets[body], when))
 
         # data for lines
         today = datetime.datetime.today()
         today_sunpath = self._compute_daily_path(self._planets[SUN], today)
-        # this shouldn't be necessary but hass loses the data somehow!?
-        self._compute_solstice_paths()
 
         plots.plot_sky(
-            today_sunpath, self._winter_data, self._summer_data, points, output
+            today_sunpath, self._winter_data, self._summer_data, points, output, str(when)
         )
