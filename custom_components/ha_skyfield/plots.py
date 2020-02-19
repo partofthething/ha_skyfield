@@ -38,7 +38,7 @@ def plot_sky(today, winter, summer, points, output=None, timelabel=None):
         ax.scatter(
             *point, s=labelinfo[2], label=labelinfo[0], alpha=1.0, color=labelinfo[1], edgecolor="black"
         )
-    ax.legend(loc="lower right")
+    ax.legend(bbox_to_anchor=(1, 1), bbox_transform=plt.gcf().transFigure)
     ax.plot(*today, "-", color="k", linewidth=1, alpha=0.8)
     ax.plot(*winter, "--", color="blue", linewidth=1, alpha=0.8)
     ax.plot(*summer, "--", color="green", linewidth=1, alpha=0.8)
