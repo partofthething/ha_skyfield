@@ -1,22 +1,42 @@
 """
 HASS camera component for skyfield.
 
-Maybe a camera is better than a sensor for live updates."""
+Maybe a camera is better than a sensor for live updates.
+"""
 import logging
 from datetime import timedelta
-import os
 import io
 
+import voluptuous as vol
+
 from homeassistant.components.camera import Camera
-from homeassistant.util import Throttle
+from homeassistant.helpers.config_validation import PLATFORM_SCHEMA
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
+import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "skyfield"
 
+CONF_SHOW_TIME = "show_time"
+CONF_SHOW_LEGEND = "show_legend"
+CONF_SHOW_CONSTELLATIONS = "show_constellations"
+CONF_PLANET_LIST = "planet_list"
+CONF_CONSTELLATION_LIST = "constellations_list"
+
 ICON = "mdi:sun"
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=1)
+
+# Validation of the user's configuration
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+    {
+        vol.Optional(CONF_SHOW_CONSTELLATIONS, default=False): cv.boolean,
+        vol.Optional(CONF_SHOW_TIME, default=True): cv.boolean,
+        vol.Optional(CONF_SHOW_LEGEND, default=True): cv.boolean,
+        vol.Optional(CONF_CONSTELLATION_LIST): cv.ensure_list,
+        vol.Optional(CONF_PLANET_LIST): cv.ensure_list,
+    }
+)
 
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
@@ -24,10 +44,26 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     latitude = config.get(CONF_LATITUDE, hass.config.latitude)
     longitude = config.get(CONF_LONGITUDE, hass.config.longitude)
     tzname = str(hass.config.time_zone)
+    show_constellations = config.get(CONF_SHOW_CONSTELLATIONS)
+    show_time = config.get(CONF_SHOW_TIME)
+    show_legend = config.get(CONF_SHOW_LEGEND)
+    constellation_list = config.get(CONF_CONSTELLATION_LIST)
+    planet_list = config.get(CONF_PLANET_LIST)
     configdir = hass.config.config_dir
     tmpdir = "/tmp/skyfield"
     _LOGGER.debug("Setting up skyfield.")
-    panel = SkyFieldCam(latitude, longitude, tzname, configdir, tmpdir)
+    panel = SkyFieldCam(
+        latitude,
+        longitude,
+        tzname,
+        configdir,
+        tmpdir,
+        show_constellations,
+        show_time,
+        show_legend,
+        constellation_list,
+        planet_list,
+    )
 
     _LOGGER.debug("Adding skyfield cam")
     add_entities([panel], True)
@@ -36,20 +72,40 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 class SkyFieldCam(Camera):
     """A hass-specific entity."""
 
-    def __init__(self, latitude, longitude, tzname, configdir, tmpdir):
+    def __init__(
+        self,
+        latitude,
+        longitude,
+        tzname,
+        configdir,
+        tmpdir,
+        show_constellations,
+        show_time,
+        show_legend,
+        constellations,
+        planets,
+    ):
         Camera.__init__(self)
         from . import bodies
 
-        self.sky = bodies.Sky((latitude, longitude), tzname)
+        self.sky = bodies.Sky(
+            (latitude, longitude),
+            tzname,
+            show_constellations,
+            show_time,
+            show_legend,
+            constellations,
+            planets,
+        )
         self._loaded = False
         self._configdir = configdir
         self._tmpdir = tmpdir
 
     @property
     def frame_interval(self):
-        # this is how often the image will update in the background. 
-        # When the GUI panel is up, it is always updated every 
-        # 10 seconds, which is too much. Must figure out how to 
+        # this is how often the image will update in the background.
+        # When the GUI panel is up, it is always updated every
+        # 10 seconds, which is too much. Must figure out how to
         # reduce...
         return 60
 

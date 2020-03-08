@@ -21,6 +21,14 @@ camera:
 ```
 * Add a picture entity to your GUI with this camera. It will update live.
 
+Optional configuration:
+
+* `show_time` add a timestamp to the plot
+* `show_legend` add a legend of the bodies
+* `show_constellations` enable or disable the constellations
+* `planet_list` customize which planets are shown
+* `constellations_list` customize which constellations are shown
+
 Inspiration comes from the University of Oregon 
 [Solar Radiation Monitoring Lab](http://solardat.uoregon.edu/PolarSunChartProgram.html).
 
