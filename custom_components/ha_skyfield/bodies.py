@@ -155,14 +155,6 @@ class Sky:  # pylint: disable=too-many-instance-attributes
 
         self._draw_objects(ax, when)
 
-        ax.set_theta_zero_location("S", offset=0)
-        ax.set_rmax(90)
-        ax.set_rgrids(
-            np.linspace(0, 90, 10), [f"{int(f)}˚" for f in np.linspace(90, 0, 10)]
-        )
-        ax.set_thetagrids(
-            np.linspace(0, 360.0, 9), ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-        )
         if self._show_time:
             ax.annotate(
                 str(when),
@@ -172,6 +164,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
                 verticalalignment="top",
                 fontsize=8,
             )
+
         if self._show_legend:
             fig.legend(
                 loc="lower right",
@@ -182,7 +175,17 @@ class Sky:  # pylint: disable=too-many-instance-attributes
                 mode=None,
                 handletextpad=0.05,
             )
+
+        ax.set_theta_zero_location("S", offset=0)
+        ax.set_rmax(90)
+        ax.set_rgrids(
+            np.linspace(0, 90, 10), [f"{int(f)}˚" for f in np.linspace(90, 0, 10)]
+        )
+        ax.set_thetagrids(
+            np.linspace(0, 360.0, 9), ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+        )
         plt.tight_layout()
+
         if output is None:
             plt.show()
         else:
@@ -194,7 +197,8 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         """Add all celestial bodies to the plots"""
         today_sunpath = BodyPath(
             self._planets[SUN],
-            datetime.datetime.today(),
+            # use today's midnight to hide discontinuities
+            datetime.datetime.now().replace(hour=0, minute=0),
             self,
             "-",
             color="k",
@@ -229,7 +233,7 @@ class BodyPath(object):
     def _compute_daily_path(self, delta=datetime.timedelta(minutes=20)):
         """Get all possible positions for a given day."""
         data = []
-        for interval in range(24 * 3 + 4):
+        for interval in range(24 * 3 + 1):
             now = self._day + delta * interval
             azi, alt = self._sky.compute_position(self._body, now)
             data.append((azi, alt))
