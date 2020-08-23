@@ -182,7 +182,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             np.linspace(0, 90, 10), [f"{int(f)}˚" for f in np.linspace(90, 0, 10)]
         )
         ax.set_thetagrids(
-            np.linspace(0, 360.0, 9), ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+            np.linspace(0, 360.0, 8), ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
         )
         plt.tight_layout()
 
