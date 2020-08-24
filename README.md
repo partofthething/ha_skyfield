@@ -19,6 +19,7 @@ To use:
 ```yaml
 camera:
     platform: ha_skyfield
+    show_constellations: false
 ```
 * Add a picture entity to your GUI with this camera. It will update live.
 
@@ -29,6 +30,7 @@ Optional configuration:
 * `show_constellations` enable or disable the constellations (default is True).
 * `planet_list` customize which planets are shown
 * `constellations_list` customize which constellations are shown
+* `north_up` (boolean) puts North at the top (useful in the Southern Hemisphere)
 
 Known Issues:
 

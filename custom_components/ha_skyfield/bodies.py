@@ -39,6 +39,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         show_legend=True,
         constellation_list=None,
         planet_list=None,
+        north_up=False
     ):
         lat, long = latlong
         self._latlong = Topos(latitude_degrees=lat, longitude_degrees=long)
@@ -54,6 +55,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         self._show_constellations = show_constellations
         self._show_time = show_time
         self._show_legend = show_legend
+        self._north_up = north_up
         if constellation_list is None:
             self._constellation_names = constellations.DEFAULT_CONSTELLATIONS
         self._planet_list = planet_list
@@ -176,7 +178,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
                 handletextpad=0.05,
             )
 
-        ax.set_theta_zero_location("S", offset=0)
+        ax.set_theta_zero_location("N" if self._north_up else "S", offset=0)
         ax.set_rmax(90)
         ax.set_rgrids(
             np.linspace(0, 90, 10), [f"{int(f)}˚" for f in np.linspace(90, 0, 10)]

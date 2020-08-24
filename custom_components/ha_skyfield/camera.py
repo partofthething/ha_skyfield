@@ -23,6 +23,9 @@ CONF_SHOW_LEGEND = "show_legend"
 CONF_SHOW_CONSTELLATIONS = "show_constellations"
 CONF_PLANET_LIST = "planet_list"
 CONF_CONSTELLATION_LIST = "constellations_list"
+# could detect north to be up if location is in souther hemisphere
+# but for no we just make it an option
+CONF_NORTH_UP = "north_up"
 
 ICON = "mdi:sun"
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=1)
@@ -35,6 +38,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_SHOW_LEGEND, default=True): cv.boolean,
         vol.Optional(CONF_CONSTELLATION_LIST): cv.ensure_list,
         vol.Optional(CONF_PLANET_LIST): cv.ensure_list,
+        vol.Optional(CONF_NORTH_UP): cv.boolean,
     }
 )
 
@@ -49,6 +53,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     show_legend = config.get(CONF_SHOW_LEGEND)
     constellation_list = config.get(CONF_CONSTELLATION_LIST)
     planet_list = config.get(CONF_PLANET_LIST)
+    north_up = config.get(CONF_NORTH_UP)
     configdir = hass.config.config_dir
     tmpdir = "/tmp/skyfield"
     _LOGGER.debug("Setting up skyfield.")
@@ -63,6 +68,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         show_legend,
         constellation_list,
         planet_list,
+        north_up,
     )
 
     _LOGGER.debug("Adding skyfield cam")
@@ -84,6 +90,7 @@ class SkyFieldCam(Camera):
         show_legend,
         constellations,
         planets,
+        north_up,
     ):
         Camera.__init__(self)
         from . import bodies
@@ -96,6 +103,7 @@ class SkyFieldCam(Camera):
             show_legend,
             constellations,
             planets,
+            north_up,
         )
         self._loaded = False
         self._configdir = configdir
