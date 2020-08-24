@@ -13,7 +13,8 @@ This uses the [skyfield library](https://rhodesmill.org/skyfield/) to do the com
 To use: 
 
 * Install this in your `custom_components` folder
-* Download the prerequisites: `pip3 install skyfield matplotlib numpy`
+* Download the prerequisites: `pip3 install skyfield matplotlib numpy` (no longer
+  necessary with hassio!)
 * Add the following to your home assistant config:
 ```yaml
 camera:
@@ -29,8 +30,17 @@ Optional configuration:
 * `planet_list` customize which planets are shown
 * `constellations_list` customize which constellations are shown
 
-WARNING: The underlying library is relatively long-running. Disable or limit
-constellations if you're using a smaller computer, like a Raspberry Pi.
+Known Issues:
+
+* WARNING: High CPU usage! The underlying library is relatively long-running. Disable or
+  limit constellations if you're using a smaller computer, like a Raspberry Pi. Even with
+  them off, the CPU load may unacceptable. Options and more 
+  discussion in [#4](https://github.com/partofthething/ha_skyfield/issues/4)
+
+* Does not follow Theme because of matplotlib backend (see
+  [#5](https://github.com/partofthething/ha_skyfield/issues/4)
+
+* More (maybe) at [Issues](https://github.com/partofthething/ha_skyfield/issues)
 
 Inspiration comes from the University of Oregon 
 [Solar Radiation Monitoring Lab](http://solardat.uoregon.edu/PolarSunChartProgram.html).
