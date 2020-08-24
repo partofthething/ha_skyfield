@@ -25,9 +25,12 @@ Optional configuration:
 
 * `show_time` add a timestamp to the plot
 * `show_legend` add a legend of the bodies
-* `show_constellations` enable or disable the constellations
+* `show_constellations` enable or disable the constellations (default is True).
 * `planet_list` customize which planets are shown
 * `constellations_list` customize which constellations are shown
+
+WARNING: The underlying library is relatively long-running. Disable or limit
+constellations if you're using a smaller computer, like a Raspberry Pi.
 
 Inspiration comes from the University of Oregon 
 [Solar Radiation Monitoring Lab](http://solardat.uoregon.edu/PolarSunChartProgram.html).
