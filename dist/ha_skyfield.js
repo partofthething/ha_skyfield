@@ -5,35 +5,45 @@
  * for the solstices and all the planets. Then we can just grab
  * that state through the state machine.
 */
+
+//var Plotly = require('plotly-latest.min.js')
+//import Plotly from '/local/plotly-latest.min.js'
+
+import '/local/plotly.js'
+
 class SkyfieldCard extends HTMLElement {
   set hass(hass) {
     if (!this.content) {
       const card = document.createElement('ha-card');
-      var plotly = document.createElement('script');
-      plotly.setAttribute('src','https://cdn.plot.ly/plotly-latest.min.js');
-      document.head.appendChild(plotly);
       card.header = 'Skyfield';
       this.content = document.createElement('div');
       this.content.style.padding = '0 16px 16px';
+
+      const plotwin = document.createElement('div');
+      var att = document.createAttribute("id");
+      att.value = "plotwin";
+      plotwin.setAttributeNode(att);
+      this.content.appendChild(plotwin);
+
       card.appendChild(this.content);
       this.appendChild(card);
+      this.makePlot(plotwin);
     }
 
-    const entityId = this.config.entity;
-    const state = hass.states[entityId];
-    const stateStr = state ? state.state : 'unavailable';
+    //const entityId = this.config.entity;
+    //const state = hass.states[entityId];
+    //const stateStr = state ? state.state : 'unavailable';
 
     //this.content.innerHTML = `
-    //  The state of ${entityId} is ${stateStr}!
-    //  <br><br>
-    //  <img src="http://via.placeholder.com/350x150">
+    //<h1>Howdy fool</h1>
     //`;
+    
   }
 
   setConfig(config) {
-    if (!config.entity) {
-      throw new Error('You need to define an entity');
-    }
+  //  if (!config.entity) {
+  //    throw new Error('You need to define an entity');
+  //  }
     this.config = config;
   }
 
@@ -43,7 +53,7 @@ class SkyfieldCard extends HTMLElement {
     return 3;
   }
 
-  makePlot() {
+  makePlot(plotwin) {
     var data = {
         r: [1,2,3,4,5,6],
         theta: [10,20,45,90,180,270],
@@ -57,6 +67,16 @@ class SkyfieldCard extends HTMLElement {
     };
 
     var layout = {
+      autosize: false,
+      width: 400,
+      height: 400,
+      margin: {
+        l: 10,
+        r: 10,
+        b: 10,
+        t: 10,
+        pad: 2
+      },
       title: 'Space status',
       font: {
         family: 'Arial, sans-serif;',
@@ -66,9 +86,8 @@ class SkyfieldCard extends HTMLElement {
       showlegend: true,
       orientation: -90
     };
-    Plotly.newPlot('content', [data], layout);
+    Plotly.newPlot(plotwin, [data], layout);
     }
   }
-}
 
 customElements.define('skyfield-card', SkyfieldCard);
