@@ -29,7 +29,8 @@ Optional configuration:
 * `show_legend` add a legend of the bodies
 * `show_constellations` enable or disable the constellations (default is True).
 * `planet_list` customize which planets are shown
-* `constellations_list` customize which constellations are shown
+* `constellations_list` customize which constellations are shown (use names from
+  [here](https://github.com/partofthething/ha_skyfield/blob/master/custom_components/ha_skyfield/constellations_by_RA_Dec.dat)
 * `north_up` (boolean) puts North at the top (useful in the Southern Hemisphere)
 
 Known Issues:
