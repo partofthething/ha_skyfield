@@ -4,7 +4,7 @@ import datetime
 
 from ha_skyfield.bodies import Sky
 
-if len(sys.argv)>1:
+if len(sys.argv) > 1:
     output = sys.argv[1]
 else:
     output = None

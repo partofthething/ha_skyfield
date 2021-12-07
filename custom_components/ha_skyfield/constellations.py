@@ -44,7 +44,7 @@ class Constellation(object):
         Draw a representation of the constellation at a certain time
         projected onto the observation disk.
 
-        This will look a bit strange with our given projection... they'll 
+        This will look a bit strange with our given projection... they'll
         look kind of upside down.
         """
         plotted = []  # don't repeat star points
@@ -62,13 +62,23 @@ class Constellation(object):
 
             if (azi1, alt1) not in plotted:
                 ax.scatter(
-                    azi1, alt1, s=10, alpha=0.1, color="black", edgecolor="black",
+                    azi1,
+                    alt1,
+                    s=10,
+                    alpha=0.1,
+                    color="black",
+                    edgecolor="black",
                 )
                 plotted.append((azi1, alt1))
 
             if (azi2, alt2) not in plotted:
                 ax.scatter(
-                    azi2, alt2, s=10, alpha=0.1, color="black", edgecolor="black",
+                    azi2,
+                    alt2,
+                    s=10,
+                    alpha=0.1,
+                    color="black",
+                    edgecolor="black",
                 )
                 plotted.append((azi2, alt2))
 

@@ -6,10 +6,15 @@ from pytz import timezone
 from skyfield.api import Loader
 from skyfield.api import Topos
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
 from . import constellations
+
+# use non-interactive backend to keep multiple instances on
+# different threads from interacting
+matplotlib.use("agg")
 
 EARTH = "earth"
 SUN = "sun"
@@ -39,7 +44,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         show_legend=True,
         constellation_list=None,
         planet_list=None,
-        north_up=False
+        north_up=False,
     ):
         lat, long = latlong
         self._latlong = Topos(latitude_degrees=lat, longitude_degrees=long)
@@ -62,8 +67,12 @@ class Sky:  # pylint: disable=too-many-instance-attributes
 
     def load(self, tmpdir="."):
         """Perform long-running init steps."""
-        self._load_sky_data(tmpdir)
-        self._run_initial_computations()
+        if self._planets is None:
+            # Interestingly, if you have multiple GUIs running you can sometimes
+            # get the load method being called more than once with the same
+            # instance variables, so we put this in a guard.
+            self._load_sky_data(tmpdir)
+            self._run_initial_computations()
 
     def _load_sky_data(self, tmpdir):
         """
@@ -149,8 +158,10 @@ class Sky:  # pylint: disable=too-many-instance-attributes
 
         visible = [np.linspace(0, 2 * np.pi, 200), [90.0 for _i in range(200)]]
 
-        fig = plt.figure(figsize=(6, 6.2))
-        ax = fig.add_subplot(111, projection="polar")  # pylint: disable=invalid-name
+        # pylint: disable=invalid-name
+        fig, ax = plt.subplots(
+            1, 1, figsize=(6, 6.2), subplot_kw={"projection": "polar"}
+        )
         ax.set_axisbelow(True)
         ax.set_theta_direction(-1)
         ax.plot(*visible, "-", color="k", linewidth=3, alpha=1.0)  # border
@@ -170,7 +181,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         if self._show_legend:
             fig.legend(
                 loc="lower right",
-                bbox_transform=plt.gcf().transFigure,
+                bbox_transform=fig.transFigure,
                 ncol=3,
                 markerscale=0.6,
                 columnspacing=1,
@@ -186,13 +197,13 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         ax.set_thetagrids(
             np.linspace(0, 360.0, 9), ["N", "NE", "E", "SE", "S", "SW", "W", "NW", "N"]
         )
-        plt.tight_layout()
+        fig.tight_layout()
 
         if output is None:
             plt.show()
         else:
             # filename string or file-like object/buffer
-            plt.savefig(output, format="png")
+            fig.savefig(output, format="png")
         plt.close()
 
     def _draw_objects(self, ax, when):
