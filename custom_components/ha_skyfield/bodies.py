@@ -96,6 +96,8 @@ class Sky:  # pylint: disable=too-many-instance-attributes
 
     def _load_points(self):
         """Initialize the objects representing the Sun, moon, and planets."""
+        # somewhat surprising, sometimes points were getting double-added
+        self._points.clear()
         for name, planet_label, color, size in BODIES:
             if self._planet_list is not None and name not in self._planet_list:
                 # planet not requested. skip it.
