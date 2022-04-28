@@ -3,6 +3,8 @@ HASS camera component for skyfield.
 
 Maybe a camera is better than a sensor for live updates.
 """
+from __future__ import annotations
+
 import logging
 from datetime import timedelta
 import io
@@ -133,7 +135,9 @@ class SkyFieldCam(Camera):
     def icon(self):
         return ICON
 
-    def camera_image(self):
+    def camera_image(
+        self, width: int | None = None, height: int | None = None
+    ) -> bytes | None:
         """Load image bytes in memory"""
         # don't use throttle because extra calls return Nones
         if not self._loaded:
