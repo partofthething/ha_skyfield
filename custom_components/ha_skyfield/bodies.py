@@ -63,6 +63,8 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         self._north_up = north_up
         if constellation_list is None:
             self._constellation_names = constellations.DEFAULT_CONSTELLATIONS
+        else:
+            self._constellation_names = constellation_list
         self._planet_list = planet_list
 
     def load(self, tmpdir="."):
