@@ -32,6 +32,7 @@ Optional configuration:
 * `constellations_list` customize which constellations are shown (use names from
   [here](https://github.com/partofthething/ha_skyfield/blob/master/custom_components/ha_skyfield/constellations_by_RA_Dec.dat))
 * `north_up` (boolean) puts North at the top (useful in the Southern Hemisphere)
+* `horizontal_flip` (boolean) flip projection horizontally
 
 Known Issues:
 

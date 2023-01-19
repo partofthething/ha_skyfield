@@ -45,6 +45,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         constellation_list=None,
         planet_list=None,
         north_up=False,
+        horizontal_flip=False,
     ):
         lat, long = latlong
         self._latlong = Topos(latitude_degrees=lat, longitude_degrees=long)
@@ -61,6 +62,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         self._show_time = show_time
         self._show_legend = show_legend
         self._north_up = north_up
+        self._horizontal_flip = horizontal_flip
         if constellation_list is None:
             self._constellation_names = constellations.DEFAULT_CONSTELLATIONS
         else:
@@ -167,7 +169,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             1, 1, figsize=(6, 6.2), subplot_kw={"projection": "polar"}
         )
         ax.set_axisbelow(True)
-        ax.set_theta_direction(-1)
+        ax.set_theta_direction(1 if self._horizontal_flip else -1)
         ax.plot(*visible, "-", color="k", linewidth=3, alpha=1.0)  # border
 
         self._draw_objects(ax, when)
