@@ -33,6 +33,7 @@ Optional configuration:
   [here](https://github.com/partofthething/ha_skyfield/blob/master/custom_components/ha_skyfield/constellations_by_RA_Dec.dat))
 * `north_up` (boolean) puts North at the top (useful in the Southern Hemisphere)
 * `horizontal_flip` (boolean) flips projection horizontally
+* `image_type` (string) Optional - provide image format extension.  Tested options are `png` (default) and `jpg`.
 
 Known Issues:
 

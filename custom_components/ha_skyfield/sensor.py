@@ -57,7 +57,7 @@ class SkyField(Entity):
     @property
     def entity_picture(self):
         """Return the camera image still."""
-        return "/local/sun.png"
+        return f"/local/sun.{self._file_type}"
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
@@ -67,4 +67,4 @@ class SkyField(Entity):
             self.sky.load(self._tmpdir)
             self._loaded = True
         _LOGGER.debug("Updating skyfield plot")
-        self.sky.plot_sky(os.path.join(self._configdir, "www", "sun.png"))
+        self.sky.plot_sky(os.path.join(self._configdir, "www", f"sun.{self.sky.get_image_type}"))

@@ -46,6 +46,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         planet_list=None,
         north_up=False,
         horizontal_flip=False,
+        image_type="png",
     ):
         lat, long = latlong
         self._latlong = Topos(latitude_degrees=lat, longitude_degrees=long)
@@ -63,6 +64,8 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         self._show_legend = show_legend
         self._north_up = north_up
         self._horizontal_flip = horizontal_flip
+        self._image_type = image_type
+
         if constellation_list is None:
             self._constellation_names = constellations.DEFAULT_CONSTELLATIONS
         else:
@@ -131,6 +134,11 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             linewidth=1,
             alpha=0.8,
         )
+
+    @property
+    def get_image_type(self):
+        """Return the image type attribute."""
+        return self._image_type
 
     def compute_position(self, body, obs_datetime):
         """
@@ -209,7 +217,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             plt.show()
         else:
             # filename string or file-like object/buffer
-            fig.savefig(output, format="png")
+            fig.savefig(output, format=self._image_type)
         plt.close()
 
     def _draw_objects(self, ax, when):
