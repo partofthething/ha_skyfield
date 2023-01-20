@@ -29,6 +29,7 @@ CONF_CONSTELLATION_LIST = "constellations_list"
 # but for no we just make it an option
 CONF_NORTH_UP = "north_up"
 CONF_HORIZONTAL_FLIP = "horizontal_flip"
+CONF_IMAGE_TYPE = "image_type"
 
 ICON = "mdi:sun"
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=1)
@@ -43,6 +44,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_PLANET_LIST): cv.ensure_list,
         vol.Optional(CONF_NORTH_UP): cv.boolean,
         vol.Optional(CONF_HORIZONTAL_FLIP): cv.boolean,
+        vol.Optional(CONF_IMAGE_TYPE): cv.string,
     }
 )
 
@@ -59,6 +61,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     planet_list = config.get(CONF_PLANET_LIST)
     north_up = config.get(CONF_NORTH_UP)
     horizontal_flip = config.get(CONF_HORIZONTAL_FLIP)
+    image_type = config.get(CONF_IMAGE_TYPE)
     configdir = hass.config.config_dir
     tmpdir = "/tmp/skyfield"
     _LOGGER.debug("Setting up skyfield.")
@@ -75,6 +78,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         planet_list,
         north_up,
         horizontal_flip,
+        image_type,
     )
 
     _LOGGER.debug("Adding skyfield cam")
@@ -98,6 +102,7 @@ class SkyFieldCam(Camera):
         planets,
         north_up,
         horizontal_flip,
+        image_type,
     ):
         Camera.__init__(self)
         from . import bodies
@@ -112,6 +117,7 @@ class SkyFieldCam(Camera):
             planets,
             north_up,
             horizontal_flip,
+            image_type,
         )
         self._loaded = False
         self._configdir = configdir
