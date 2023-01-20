@@ -57,7 +57,7 @@ class SkyField(Entity):
     @property
     def entity_picture(self):
         """Return the camera image still."""
-        return f"/local/sun.{self._file_type}"
+        return f"/local/sun.{self.sky.get_image_type}"
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
