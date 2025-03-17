@@ -18,8 +18,8 @@ To use:
 * Add the following to your home assistant config:
 ```yaml
 camera:
-    platform: ha_skyfield
-    show_constellations: false
+  platform: ha_skyfield
+  show_constellations: false
 ```
 * Add a picture entity to your GUI with this camera. It will update live.
 
