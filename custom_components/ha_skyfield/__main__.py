@@ -1,6 +1,6 @@
 """Main event is to just plot a demo"""
+
 import sys
-import datetime
 
 from ha_skyfield.bodies import Sky
 
@@ -13,12 +13,14 @@ seattle = (47.608, -122.335)
 pacific = "America/Los_Angeles"
 sky = Sky(seattle, pacific)
 sky.load()
-when = datetime.datetime.now()
+# in Seattle's own time, whatever this machine's clock happens to be set to
+when = sky.local_time()
 sky.plot_sky(when=when, output=output)
 
 # timelapse
 
-# when =datetime.datetime.now()
+# import datetime
+# when = sky.local_time()
 # interval = datetime.timedelta(minutes=30)
 #
 # for frame in range(72*2):

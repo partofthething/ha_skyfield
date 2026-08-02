@@ -1,4 +1,5 @@
 """Code that makes plot."""
+
 import matplotlib.pyplot as plt
 
 

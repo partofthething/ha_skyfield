@@ -1,11 +1,12 @@
 """HASS component for skyfield."""
-import logging
-from datetime import timedelta
-import os
 
+import logging
+import os
+from datetime import timedelta
+
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.helpers.entity import Entity
 from homeassistant.util import Throttle
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,4 +68,6 @@ class SkyField(Entity):
             self.sky.load(self._tmpdir)
             self._loaded = True
         _LOGGER.debug("Updating skyfield plot")
-        self.sky.plot_sky(os.path.join(self._configdir, "www", f"sun.{self.sky.get_image_type}"))
+        self.sky.plot_sky(
+            os.path.join(self._configdir, "www", f"sun.{self.sky.get_image_type}")
+        )

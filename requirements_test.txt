@@ -4,4 +4,3 @@ homeassistant
 skyfield>=1.49
 matplotlib
 numpy
-pytz

@@ -3,18 +3,18 @@ HASS camera component for skyfield.
 
 Maybe a camera is better than a sensor for live updates.
 """
+
 from __future__ import annotations
 
+import io
 import logging
 from datetime import timedelta
-import io
 
-import voluptuous as vol
-
-from homeassistant.components.camera import Camera
-from homeassistant.helpers.config_validation import PLATFORM_SCHEMA
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 import homeassistant.helpers.config_validation as cv
+import voluptuous as vol
+from homeassistant.components.camera import Camera
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
+from homeassistant.helpers.config_validation import PLATFORM_SCHEMA
 
 _LOGGER = logging.getLogger(__name__)
 

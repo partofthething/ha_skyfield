@@ -1,13 +1,12 @@
 """Collect data about where celestial bodies are."""
+
 import datetime
 import math
-
-from pytz import timezone
-from skyfield.api import Loader
-from skyfield.api import Topos
-from skyfield.framelib import mean_equator_and_equinox_of_date
+from zoneinfo import ZoneInfo
 
 import numpy as np
+from skyfield.api import Loader, Topos
+from skyfield.framelib import mean_equator_and_equinox_of_date
 
 from . import constellations
 
@@ -18,7 +17,6 @@ SUN_LABEL = "Sun"
 # how precisely to report positions: a thousandth of a degree is
 # a three-hundredth of a pixel, so anything beyond this is just payload
 DEGREE_PLACES = 3
-
 
 BODIES = [
     (SUN_LABEL, SUN, "gold", 500),
@@ -72,7 +70,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         lat, long = latlong
         self._lat, self._long = lat, long
         self._latlong = Topos(latitude_degrees=lat, longitude_degrees=long)
-        self._timezone = timezone(tzname)
+        self._timezone = ZoneInfo(tzname)
         self._planets = None
         self._ts = None
         self._location = None
@@ -138,11 +136,11 @@ class Sky:  # pylint: disable=too-many-instance-attributes
 
     def _compute_solstice_paths(self):
         """Compute solar paths at winter and summer solstices."""
-        today = datetime.datetime.today()
+        this_year = self.local_time().year
         self._winter_solstice = BodyPath(
             "winter_solstice",
             self._planets[SUN],
-            datetime.datetime(today.year, 12, 21),
+            self._midnight(datetime.date(this_year, 12, 21)),
             self,
             fmt="--",
             color="blue",
@@ -152,7 +150,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         self._summer_solstice = BodyPath(
             "summer_solstice",
             self._planets[SUN],
-            datetime.datetime(today.year, 6, 21),
+            self._midnight(datetime.date(this_year, 6, 21)),
             self,
             fmt="--",
             color="green",
@@ -165,16 +163,41 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         """Return the image type attribute."""
         return self._image_type
 
+    def _midnight(self, date):
+        """The start of a given day where the observer is standing."""
+        return datetime.datetime.combine(date, datetime.time(), tzinfo=self._timezone)
+
+    def local_time(self, when=None):
+        """
+        The configured location's own idea of a moment in time.
+
+        Asked for nothing, this gives now. Given a moment that carries no zone,
+        it takes the configured one to have been meant, and given one that does,
+        it moves it to the configured zone.
+
+        Everything here goes through this, because the machine's clock and the
+        configured location often disagree: a Home Assistant container commonly
+        runs on UTC while the sky it is drawing is somebody's back garden on the
+        other side of the world. Reading the machine's wall clock and calling it
+        local would turn the sky by the difference between them, and taking
+        `today` off a UTC clock would sometimes draw tomorrow's Sun.
+        """
+        if when is None:
+            return datetime.datetime.now(self._timezone)
+        if when.tzinfo is None:
+            return when.replace(tzinfo=self._timezone)
+        return when.astimezone(self._timezone)
+
     def to_time(self, obs_datetime):
         """
-        Convert a local datetime, or a sequence of them, to a skyfield time.
+        Convert a moment, or a sequence of them, to a skyfield time.
 
         Skyfield handles a whole array of times in a single pass, which is much
         cheaper than looping in Python, so sequences are passed through intact.
         """
         if isinstance(obs_datetime, datetime.datetime):
-            return self._ts.utc(self._timezone.localize(obs_datetime))
-        return self._ts.utc([self._timezone.localize(when) for when in obs_datetime])
+            return self._ts.utc(self.local_time(obs_datetime))
+        return self._ts.utc([self.local_time(when) for when in obs_datetime])
 
     def observer_at(self, obs_time):
         """
@@ -241,8 +264,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         daily paths, on the other hand, are already fixed curves for the day, so
         they are given as the altitudes and azimuths they will keep.
         """
-        if when is None:
-            when = datetime.datetime.now()
+        when = self.local_time(when)
         obs_time = self.to_time(when)
         observer = self.observer_at(obs_time)
 
@@ -288,8 +310,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         """
         plt = _pyplot()
 
-        if when is None:
-            when = datetime.datetime.now()
+        when = self.local_time(when)
 
         visible = [np.linspace(0, 2 * np.pi, 200), [90.0 for _i in range(200)]]
 
@@ -305,7 +326,8 @@ class Sky:  # pylint: disable=too-many-instance-attributes
 
         if self._show_time:
             ax.annotate(
-                str(when),
+                # naming the zone, since the machine's is often not this one
+                when.strftime("%Y-%m-%d %H:%M:%S %Z"),
                 xy=(0.09, 0.07),
                 xycoords="figure fraction",
                 horizontalalignment="left",
@@ -372,8 +394,8 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             self._today_sunpath = BodyPath(
                 "today",
                 self._planets[SUN],
-                # use today's midnight to hide discontinuities
-                datetime.datetime.combine(date, datetime.time()),
+                # start at midnight to hide discontinuities
+                self._midnight(date),
                 self,
                 "-",
                 color="k",
@@ -383,7 +405,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         return self._today_sunpath
 
 
-class BodyPath(object):
+class BodyPath:
     """A line that some Body will travel on on some given day"""
 
     def __init__(self, name, body, day, sky, fmt, color, linewidth=1, alpha=0.8):
@@ -435,7 +457,7 @@ class BodyPath(object):
         )
 
 
-class Point(object):
+class Point:
     """A point in the sky like a planet or the sun"""
 
     def __init__(self, label, body, color, size, sky):

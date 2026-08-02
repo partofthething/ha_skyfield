@@ -1,7 +1,7 @@
 """Handle plotting constellations on the sky field."""
 
-import os
 import math
+import os
 
 import numpy as np
 
@@ -33,7 +33,7 @@ ZODIAC = [
 DEFAULT_CONSTELLATIONS = ZODIAC + ["Cassiopeia", "Orion", "Pegasus", "UrsaMajor"]
 
 
-class Constellation(object):
+class Constellation:
     """A single constellation."""
 
     def __init__(self, name, radec_pairs, sky):
