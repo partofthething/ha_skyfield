@@ -522,9 +522,15 @@ const STYLES = `
   }
 `;
 
-// guarded so that the astronomy above can be imported and checked outside a browser
-if (typeof customElements !== "undefined") {
+// A dashboard resource and an extra module URL are different specifiers for the
+// same file, so anybody holding both ends up here twice; registering the name a
+// second time would throw and leave a confusing error in the console.
+if (!customElements.get("skyfield-card")) {
   customElements.define("skyfield-card", SkyfieldCard);
+
+  // says so in the console, the way other cards do, so that "this card does not
+  // exist" can be told apart from "this card never loaded"
+  console.info("%c skyfield-card loaded", "color: #18bcf2; font-weight: bold");
 
   window.customCards = window.customCards || [];
   window.customCards.push({

@@ -17,6 +17,7 @@ import pathlib
 import voluptuous as vol
 from homeassistant.components import frontend
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
+from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -109,11 +110,9 @@ def _build_sky(hass: HomeAssistant, conf: ConfigType):
 
 async def _register_card(hass: HomeAssistant) -> None:
     """
-    Serve the card and tell the frontend to load it.
+    Serve the card and get the frontend to load it.
 
-    Registering the URL as an extra module saves everyone a trip to the Lovelace
-    resources page, and works the same whether dashboards are stored in the UI or
-    written in YAML. The version is tacked on so that upgrading actually gets the
+    The version is tacked on to the URL so that upgrading actually fetches the
     new card rather than whatever the browser cached last time.
     """
     # Home Assistant will happily register a route to a file that is not there
@@ -134,7 +133,53 @@ async def _register_card(hass: HomeAssistant) -> None:
     )
 
     integration = await async_get_integration(hass, DOMAIN)
-    frontend.add_extra_js_url(hass, f"{CARD_URL}?v={integration.version}")
+    url = f"{CARD_URL}?v={integration.version}"
+
+    if await _add_dashboard_resource(hass, url):
+        return
+
+    # Dashboards written in YAML keep their own resource list, which cannot be
+    # added to from here, so fall back to loading the card on every frontend page.
+    frontend.add_extra_js_url(hass, url)
+    _LOGGER.warning(
+        "Your dashboard resources are managed in YAML, so the card could not be "
+        "registered automatically. It is being loaded as an extra module instead, "
+        "which occasionally loses a race with the dashboard and is then reported "
+        "as 'Custom element doesn't exist: skyfield-card'. To make it reliable, "
+        "add this to your lovelace resources: {url: %s, type: module}",
+        url,
+    )
+
+
+async def _add_dashboard_resource(hass: HomeAssistant, url: str) -> bool:
+    """
+    Put the card in the dashboard's resource list. Says whether that worked.
+
+    This is worth the trouble because a dashboard waits for its resources before
+    it draws any cards, which it does not do for an extra module URL: a card
+    loaded that way can lose the race and be reported as not existing at all,
+    however well the file itself is being served.
+    """
+    lovelace = hass.data.get(LOVELACE_DOMAIN)
+    if lovelace is None or lovelace.resource_mode != "storage":
+        return False
+
+    resources = lovelace.resources
+    if not resources.loaded:
+        await resources.async_load()
+        resources.loaded = True
+
+    for resource in resources.async_items():
+        if resource["url"].partition("?")[0] != CARD_URL:
+            continue
+        if resource["url"] != url:
+            # a different version of the same card: point the entry that is
+            # already there at the new one rather than leaving both behind
+            await resources.async_update_item(resource["id"], {"url": url})
+        return True
+
+    await resources.async_create_item({"res_type": "module", "url": url})
+    return True
 
 
 class SkyView(HomeAssistantView):

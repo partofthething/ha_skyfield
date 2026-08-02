@@ -24,9 +24,25 @@ ha_skyfield:
 type: custom:skyfield-card
 ```
 
-The card is registered for you, so there is nothing to add to the Lovelace
-resources page. It draws itself as SVG, so it stays sharp at any size and takes
-its colours from your theme, dark mode included.
+The card registers itself as a dashboard resource, so there is normally nothing to
+add by hand. It draws itself as SVG, so it stays sharp at any size and takes its
+colours from your theme, dark mode included.
+
+If your dashboard resources are managed in YAML rather than through the UI, Home
+Assistant will not let the integration add to them, and you will see a warning in
+the log saying so. Add it yourself in that case:
+
+```yaml
+lovelace:
+  resources:
+    - url: /ha_skyfield/skyfield-card.js
+      type: module
+```
+
+If a dashboard ever reports `Custom element doesn't exist: skyfield-card`, look in
+the browser console for a `skyfield-card loaded` line. If it is absent the file is
+not reaching the browser; if it is present the card is loaded and the dashboard
+simply asked for it too early, which the resource registration above fixes.
 
 The chart is drawn in your browser from the sky coordinates Home Assistant sends
 it. Those only change slowly, so the browser can turn the sky itself as the
