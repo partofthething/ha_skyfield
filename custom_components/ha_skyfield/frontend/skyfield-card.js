@@ -92,18 +92,28 @@ export function altAz(ra, dec, observer) {
 }
 
 /**
+ * How far from the middle a given altitude sits.
+ *
+ * Straight overhead is the middle and the horizon is the rim, so this is the same
+ * whichever way round the chart has been turned.
+ */
+function radiusFor(altitude) {
+  return (HORIZON_RADIUS * (HORIZON - altitude)) / HORIZON;
+}
+
+/**
  * Places a point of sky on the drawing.
  *
- * Straight overhead is the middle and the horizon is the rim, so the chart reads
- * as though you were lying on your back looking up. That puts east to the left of
- * north, which is the way round a sky chart goes and the opposite of a map.
+ * The chart reads as though you were lying on your back looking up, which puts
+ * east to the left of north: the way round a sky chart goes, and the opposite of
+ * a map.
  */
 function projector({ north_up, horizontal_flip }) {
   const zero = north_up ? Math.PI / 2 : -Math.PI / 2;
   const direction = horizontal_flip ? 1 : -1;
 
   return (azimuth, altitude) => {
-    const radius = (HORIZON_RADIUS * (HORIZON - altitude)) / HORIZON;
+    const radius = radiusFor(altitude);
     const angle = zero + direction * azimuth * DEG;
     return [
       CENTRE + radius * Math.cos(angle),
@@ -196,7 +206,9 @@ class SkyfieldCard extends HTMLElement {
     if (!this._model) {
       return;
     }
-    if (!this._built) {
+    // rebuilding would throw away the enlarged view mid-look; the parts a rebuild
+    // renews only change from one day to the next, so they can wait
+    if (!this._built && !this._dialog?.open) {
       this._build();
     }
     this._place();
@@ -244,19 +256,48 @@ class SkyfieldCard extends HTMLElement {
           ${settings.show_time === false ? "" : `<div class="when"></div>`}
           ${settings.show_legend === false ? "" : this._legend(settings)}
         </div>
-      </ha-card>`;
+      </ha-card>
+      <dialog class="enlarged"></dialog>`;
 
     this._project = project;
     this._built = true;
+    this._wireUpEnlarging();
+  }
+
+  /**
+   * Let a click on the chart blow it up to fill the screen.
+   *
+   * The one chart gets moved into the dialog and back out again rather than a
+   * second one being drawn, so it carries on being redrawn on the same timer, and
+   * everything that looks it up by selector still finds it.
+   */
+  _wireUpEnlarging() {
+    const chart = this.querySelector(".skyfield");
+    const card = this.querySelector("ha-card");
+    this._dialog = this.querySelector("dialog.enlarged");
+
+    chart.addEventListener("click", () => {
+      if (!this._dialog.open) {
+        this._dialog.appendChild(chart);
+        this._dialog.showModal();
+      }
+    });
+    // a click anywhere in the enlarged view puts it away again, as does Escape,
+    // which a modal dialog gives us for nothing
+    this._dialog.addEventListener("click", () => this._dialog.close());
+    this._dialog.addEventListener("close", () => {
+      card.appendChild(chart);
+      // a redraw may have been held off while the dialog was up
+      this._draw();
+    });
   }
 
   /** Rings of equal altitude and spokes of equal azimuth. */
   _grid(project) {
     const rings = [];
     for (let altitude = 0; altitude < HORIZON; altitude += RING_STEP) {
-      const [, top] = project(0, altitude);
       rings.push(
-        `<circle cx="${CENTRE}" cy="${CENTRE}" r="${round(CENTRE - top)}"/>`,
+        `<circle cx="${CENTRE}" cy="${CENTRE}" r="${round(radiusFor(altitude))}"/>`,
       );
     }
     const spokes = COMPASS.map((_, index) => {
@@ -423,12 +464,40 @@ class SkyfieldCard extends HTMLElement {
 const STYLES = `
   .skyfield {
     padding: 8px 12px 12px;
+    cursor: zoom-in;
   }
   .skyfield svg {
     display: block;
     width: 100%;
     height: auto;
     overflow: visible;
+  }
+  dialog.enlarged {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    /* laying the chart out here rather than sizing it, so that a square chart
+       fills whichever of the two dimensions runs out first */
+    display: none;
+    place-items: center;
+  }
+  dialog.enlarged[open] {
+    display: grid;
+  }
+  dialog.enlarged::backdrop {
+    background: var(--card-background-color, #fff);
+    opacity: 0.97;
+  }
+  dialog.enlarged .skyfield {
+    cursor: zoom-out;
+    width: min(100vw, 100vh);
+    padding: 16px;
+    box-sizing: border-box;
   }
   .grid circle,
   .grid line {
@@ -473,16 +542,21 @@ const STYLES = `
   .constellation-lines,
   .stars {
     fill: none;
-    stroke: var(--primary-text-color, #212121);
     stroke-linecap: round;
   }
+  /* the joins are meant to be a hint, so they stay faint */
   .constellation-lines {
+    stroke: var(--primary-text-color, #212121);
     stroke-width: 1;
     opacity: 0.28;
   }
+  /* the stars themselves carry the theme's ink at nearly full strength, which
+     comes out near-white on a dark theme and near-black on a light one, the way
+     the matplotlib chart had them */
   .stars {
-    stroke-width: 3;
-    opacity: 0.45;
+    stroke: var(--skyfield-star-color, var(--primary-text-color, #212121));
+    stroke-width: 2.6;
+    opacity: 0.9;
   }
   .body {
     stroke: var(--skyfield-body-edge-color, rgba(0, 0, 0, 0.55));
