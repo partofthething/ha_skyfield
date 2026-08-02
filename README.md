@@ -37,11 +37,6 @@ Optional configuration:
 
 Known Issues:
 
-* WARNING: High CPU usage! The underlying library is relatively long-running. Disable or
-  limit constellations if you're using a smaller computer, like a Raspberry Pi. Even with
-  them off, the CPU load may unacceptable. Options and more 
-  discussion in [#4](https://github.com/partofthething/ha_skyfield/issues/4)
-
 * Does not follow Theme because of matplotlib backend (see
   [#5](https://github.com/partofthething/ha_skyfield/issues/4)
 

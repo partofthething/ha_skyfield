@@ -1,15 +1,19 @@
 """Handle plotting constellations on the sky field."""
 
 import os
-import datetime
 import math
 
 import numpy as np
 
-from skyfield.api import Star
-
 THIS_DIR = os.path.split(__file__)[0]
 DATA_FILE = os.path.join(THIS_DIR, "constellations_by_RA_Dec.dat")
+
+# how many points to draw along each line, so that it follows
+# the curve of the polar projection instead of cutting across it
+POINTS_PER_LINE = 10
+
+# altitudes are measured down from straight up, so this is the horizon
+HORIZON = 90.0
 
 ZODIAC = [
     "Aries",
@@ -34,10 +38,10 @@ class Constellation(object):
 
     def __init__(self, name, radec_pairs, sky):
         self.name = name
-        self._radec_pairs = radec_pairs
         self._sky = sky
+        self._star_xyz, self._lines = _build_stick_figure(radec_pairs)
 
-    def draw(self, ax, when):
+    def draw(self, ax, obs_time):
         """
         Draw on a matplotlib axis.
 
@@ -46,55 +50,85 @@ class Constellation(object):
 
         This will look a bit strange with our given projection... they'll
         look kind of upside down.
+
+        Stars are so far away that which way they lie does not depend on where
+        in its orbit the Earth happens to be, only on which way the observer is
+        facing. So the whole figure can be placed with a single rotation instead
+        of a light-travel-time solution per star, and the lines can be drawn as
+        one path instead of one at a time. Both are enormously cheaper, and the
+        rotation is off by under a hundredth of a degree, or a fiftieth of a
+        pixel at the size we draw.
         """
-        plotted = []  # don't repeat star points
+        azi, alt = self._sky.to_altaz(self._star_xyz, obs_time)
 
-        for (ra1, dec1), (ra2, dec2) in self._radec_pairs:
-            star1 = Star(ra_hours=ra1, dec_degrees=dec1)
-            star2 = Star(ra_hours=ra2, dec_degrees=dec2)
-            azi1, alt1 = self._sky.compute_position(star1, when)
-            azi2, alt2 = self._sky.compute_position(star2, when)
-            # alt1 = 90 - alt1
-            # alt2 = 90 - alt2
-            if alt1 > 90 and alt1 > 90:
-                # skip constellations that are not visible
-                continue
+        above = alt <= HORIZON
+        ax.scatter(
+            azi[above],
+            alt[above],
+            s=10,
+            alpha=0.1,
+            color="black",
+            edgecolor="black",
+        )
 
-            if (azi1, alt1) not in plotted:
-                ax.scatter(
-                    azi1,
-                    alt1,
-                    s=10,
-                    alpha=0.1,
-                    color="black",
-                    edgecolor="black",
-                )
-                plotted.append((azi1, alt1))
+        start, end = self._lines.T
+        # skip lines with both ends below the horizon; they are not visible
+        visible = above[start] | above[end]
+        azi1, alt1 = azi[start[visible]], alt[start[visible]]
+        azi2, alt2 = azi[end[visible]], alt[end[visible]]
 
-            if (azi2, alt2) not in plotted:
-                ax.scatter(
-                    azi2,
-                    alt2,
-                    s=10,
-                    alpha=0.1,
-                    color="black",
-                    edgecolor="black",
-                )
-                plotted.append((azi2, alt2))
+        # take the short way around, rather than the wrong way across the plot
+        azi2 = azi2 - np.round((azi2 - azi1) / (2 * math.pi)) * 2 * math.pi
 
-            # avoid wrap-arounds azimuthally
-            if azi2 - azi1 > math.pi:
-                azi1 += math.pi * 2
-            elif azi1 - azi2 > math.pi:
-                azi2 += math.pi * 2
-            ax.plot(
-                np.linspace(azi1, azi2, 10),
-                np.linspace(alt1, alt2, 10),
-                "-",
-                color="k",
-                linewidth=1,
-                alpha=0.1,
-            )
+        ax.plot(
+            *_polyline(azi1, azi2, alt1, alt2),
+            "-",
+            color="k",
+            linewidth=1,
+            alpha=0.1,
+        )
+
+
+def _build_stick_figure(radec_pairs):
+    """
+    Turn pairs of sky coordinates into stars and the lines joining them.
+
+    Stars are shared between lines, so they get collected up into one list of
+    unique positions, expressed as the unit vectors that skyfield works in, plus
+    the pairs of indices into that list that make up each line.
+    """
+    stars = {}
+    lines = []
+    for point1, point2 in radec_pairs:
+        lines.append(
+            [stars.setdefault(point, len(stars)) for point in (point1, point2)]
+        )
+
+    ra_hours, dec_degrees = np.array(list(stars)).T
+    ra = ra_hours * math.pi / 12
+    dec = np.radians(dec_degrees)
+    star_xyz = np.array(
+        [np.cos(dec) * np.cos(ra), np.cos(dec) * np.sin(ra), np.sin(dec)]
+    )
+    return star_xyz, np.array(lines)
+
+
+def _polyline(azi1, azi2, alt1, alt2):
+    """
+    String a set of line segments together into a single path.
+
+    Each segment gets drawn as several points so that it curves along with the
+    polar projection, and the segments are separated by gaps, which matplotlib
+    understands as a break in the line.
+    """
+    along = np.linspace(0, 1, POINTS_PER_LINE)
+    gap = np.full((len(azi1), 1), np.nan)
+
+    def interpolate(start, stop):
+        points = start[:, None] + (stop - start)[:, None] * along
+        return np.hstack([points, gap]).ravel()
+
+    return interpolate(azi1, azi2), interpolate(alt1, alt2)
 
 
 def read_data():

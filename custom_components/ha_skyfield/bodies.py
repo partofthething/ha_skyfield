@@ -18,9 +18,10 @@ matplotlib.use("agg")
 
 EARTH = "earth"
 SUN = "sun"
+SUN_LABEL = "Sun"
 
 BODIES = [
-    ("Sun", SUN, "gold", 500),
+    (SUN_LABEL, SUN, "gold", 500),
     ("Mercury", "mercury", "pink", 40),
     ("Venus", "venus", "rosybrown", 60),
     ("Moon", "moon", "lightgrey", 300),
@@ -56,6 +57,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         self._location = None
         self._winter_solstice = None
         self._summer_solstice = None
+        self._today_sunpath = None
         self.sun_position = None
         self._constellations = []
         self._points = []
@@ -140,19 +142,54 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         """Return the image type attribute."""
         return self._image_type
 
-    def compute_position(self, body, obs_datetime):
+    def to_time(self, obs_datetime):
         """
-        Compute azimuth and altitude of a body at a time.
+        Convert a local datetime, or a sequence of them, to a skyfield time.
+
+        Skyfield handles a whole array of times in a single pass, which is much
+        cheaper than looping in Python, so sequences are passed through intact.
+        """
+        if isinstance(obs_datetime, datetime.datetime):
+            return self._ts.utc(self._timezone.localize(obs_datetime))
+        return self._ts.utc([self._timezone.localize(when) for when in obs_datetime])
+
+    def observer_at(self, obs_time):
+        """
+        Locate the observer, ready to observe bodies at the given time(s).
+
+        Everything in one frame is seen from the same place at the same time, so
+        this only has to be worked out once per frame rather than once per body.
+        """
+        return self._location.at(obs_time)
+
+    def compute_position(self, body, obs_datetime):
+        """Compute azimuth and altitude of a body at a time (or times)."""
+        obs_time = self.to_time(obs_datetime)
+        return self.observe(self.observer_at(obs_time), body)
+
+    def observe(self, observer, body):
+        """
+        Compute azimuth and altitude of a body as seen by an observer.
+
+        This deliberately skips skyfield's ``apparent()`` correction, which
+        spends most of its time computing how much the Sun and giant planets
+        bend the incoming light. That amounts to a couple of arcseconds; a whole
+        degree is only about three pixels here, so it is invisible.
+        """
+        return self.to_altaz(observer.observe(body).xyz.au, observer.t)
+
+    def to_altaz(self, xyz, obs_time):
+        """
+        Rotate positions given as x, y, z vectors into azimuth and altitude.
 
         Remap the altitude to be degrees away from straight up
         rather than from the horizon, since this is how
         the plot axes are in theta,r coordinates.
         """
-        obs_time = self._ts.utc(self._timezone.localize(obs_datetime))
-        astrometric = self._location.at(obs_time).observe(body)
-        alt, azi, _d = astrometric.apparent().altaz()
-        alt = 90 - alt.radians * 180 / math.pi
-        azi = azi.radians
+        rotation = self._latlong.rotation_at(obs_time)
+        x, y, z = np.einsum("ij...,j...->i...", rotation, xyz)
+        azi = np.arctan2(y, x) % (2 * math.pi)
+        alt = 90 - np.degrees(np.arctan2(z, np.hypot(x, y)))
         return azi, alt
 
     def plot_sky(self, output=None, when=None):
@@ -222,24 +259,43 @@ class Sky:  # pylint: disable=too-many-instance-attributes
 
     def _draw_objects(self, ax, when):
         """Add all celestial bodies to the plots"""
-        today_sunpath = BodyPath(
-            self._planets[SUN],
-            # use today's midnight to hide discontinuities
-            datetime.datetime.now().replace(hour=0, minute=0),
-            self,
-            "-",
-            color="k",
-            linewidth=1,
-            alpha=0.8,
-        )
-        for sunpath in [self._winter_solstice, self._summer_solstice, today_sunpath]:
+        obs_time = self.to_time(when)
+        observer = self.observer_at(obs_time)
+
+        for sunpath in [
+            self._winter_solstice,
+            self._summer_solstice,
+            self._sunpath_for(when.date()),
+        ]:
             sunpath.draw(ax)
 
         for point in self._points:
-            point.draw(ax, when)
+            position = point.draw(ax, observer)
+            if point.label == SUN_LABEL:
+                self.sun_position = position
 
         for constellation in self._constellations:
-            constellation.draw(ax, when)
+            constellation.draw(ax, obs_time)
+
+    def _sunpath_for(self, date):
+        """
+        Get the Sun's path across the sky on a given date.
+
+        The path only changes from one day to the next, so it is worth keeping
+        rather than recomputing on every frame.
+        """
+        if self._today_sunpath is None or self._today_sunpath.date != date:
+            self._today_sunpath = BodyPath(
+                self._planets[SUN],
+                # use today's midnight to hide discontinuities
+                datetime.datetime.combine(date, datetime.time()),
+                self,
+                "-",
+                color="k",
+                linewidth=1,
+                alpha=0.8,
+            )
+        return self._today_sunpath
 
 
 class BodyPath(object):
@@ -257,14 +313,15 @@ class BodyPath(object):
 
         self._compute_daily_path()
 
+    @property
+    def date(self):
+        """The date this path was computed for."""
+        return self._day.date()
+
     def _compute_daily_path(self, delta=datetime.timedelta(minutes=20)):
-        """Get all possible positions for a given day."""
-        data = []
-        for interval in range(24 * 3 + 1):
-            now = self._day + delta * interval
-            azi, alt = self._sky.compute_position(self._body, now)
-            data.append((azi, alt))
-        self.path = list(zip(*data))
+        """Get all possible positions for a given day, in one pass."""
+        times = [self._day + delta * interval for interval in range(24 * 3 + 1)]
+        self.path = self._sky.compute_position(self._body, times)
 
     def draw(self, ax):
         """Draw this path on a matplotlib axis"""
@@ -281,20 +338,22 @@ class Point(object):
     """A point in the sky like a planet or the sun"""
 
     def __init__(self, label, body, color, size, sky):
-        self._label = label
+        self.label = label
         self._body = body
         self._size = size
         self._color = color
         self._sky = sky
 
-    def draw(self, ax, when):
-        azi, alt = self._sky.compute_position(self._body, when)
+    def draw(self, ax, observer):
+        """Draw this body as seen by an observer, and report where it is."""
+        azi, alt = self._sky.observe(observer, self._body)
         ax.scatter(
             azi,
             alt,
             s=self._size,
-            label=self._label,
+            label=self.label,
             alpha=1.0,
             color=self._color,
             edgecolor="black",
         )
+        return azi, alt
