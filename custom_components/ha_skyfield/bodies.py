@@ -5,20 +5,20 @@ import math
 from pytz import timezone
 from skyfield.api import Loader
 from skyfield.api import Topos
+from skyfield.framelib import mean_equator_and_equinox_of_date
 
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 
 from . import constellations
 
-# use non-interactive backend to keep multiple instances on
-# different threads from interacting
-matplotlib.use("agg")
-
 EARTH = "earth"
 SUN = "sun"
 SUN_LABEL = "Sun"
+
+# how precisely to report positions: a thousandth of a degree is
+# a three-hundredth of a pixel, so anything beyond this is just payload
+DEGREE_PLACES = 3
+
 
 BODIES = [
     (SUN_LABEL, SUN, "gold", 500),
@@ -31,6 +31,26 @@ BODIES = [
     ("Uranus", "uranus barycenter", "lightsteelblue", 40),
     ("Neptune", "neptune barycenter", "royalblue", 30),
 ]
+
+
+def _rotate(rotation, xyz):
+    """Apply a rotation matrix to one x, y, z vector or a whole array of them."""
+    return np.einsum("ij...,j...->i...", rotation, xyz)
+
+
+def _pyplot():
+    """
+    Get pyplot, ready to draw to a file.
+
+    The non-interactive backend keeps multiple instances on different threads
+    from interacting.
+    """
+    import matplotlib
+
+    matplotlib.use("agg")
+    import matplotlib.pyplot
+
+    return matplotlib.pyplot
 
 
 class Sky:  # pylint: disable=too-many-instance-attributes
@@ -50,6 +70,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         image_type="png",
     ):
         lat, long = latlong
+        self._lat, self._long = lat, long
         self._latlong = Topos(latitude_degrees=lat, longitude_degrees=long)
         self._timezone = timezone(tzname)
         self._planets = None
@@ -119,6 +140,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         """Compute solar paths at winter and summer solstices."""
         today = datetime.datetime.today()
         self._winter_solstice = BodyPath(
+            "winter_solstice",
             self._planets[SUN],
             datetime.datetime(today.year, 12, 21),
             self,
@@ -128,6 +150,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             alpha=0.8,
         )
         self._summer_solstice = BodyPath(
+            "summer_solstice",
             self._planets[SUN],
             datetime.datetime(today.year, 6, 21),
             self,
@@ -186,11 +209,67 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         rather than from the horizon, since this is how
         the plot axes are in theta,r coordinates.
         """
-        rotation = self._latlong.rotation_at(obs_time)
-        x, y, z = np.einsum("ij...,j...->i...", rotation, xyz)
+        x, y, z = _rotate(self._latlong.rotation_at(obs_time), xyz)
         azi = np.arctan2(y, x) % (2 * math.pi)
         alt = 90 - np.degrees(np.arctan2(z, np.hypot(x, y)))
         return azi, alt
+
+    def to_radec(self, xyz, obs_time):
+        """
+        Rotate x, y, z vectors into right ascension and declination of date.
+
+        These are the coordinates to hand to a client that wants to place things
+        in the sky itself. They still turn with the seasons, but the Earth's spin
+        has been taken out of them, and spin is the one part of this that is
+        cheap to work out from nothing but a clock and a longitude.
+
+        Angles come back rounded to the precision a drawing can actually show,
+        since this is only ever used to describe the sky to somebody else.
+        """
+        x, y, z = _rotate(mean_equator_and_equinox_of_date.rotation_at(obs_time), xyz)
+        ra = np.degrees(np.arctan2(y, x)) % 360
+        dec = np.degrees(np.arctan2(z, np.hypot(x, y)))
+        return np.round(ra, DEGREE_PLACES), np.round(dec, DEGREE_PLACES)
+
+    def sky_model(self, when=None):
+        """
+        Describe the whole sky as plain data, for a client that draws it itself.
+
+        Positions of the Sun, Moon and planets are given as right ascension and
+        declination rather than as points on the plot, so that a client can turn
+        the sky for itself as the minutes pass without asking again. The Sun's
+        daily paths, on the other hand, are already fixed curves for the day, so
+        they are given as the altitudes and azimuths they will keep.
+        """
+        if when is None:
+            when = datetime.datetime.now()
+        obs_time = self.to_time(when)
+        observer = self.observer_at(obs_time)
+
+        return {
+            # taken from the converted time rather than the argument, so it says
+            # what was actually computed and lands in the configured zone
+            "generated": obs_time.astimezone(self._timezone).isoformat(),
+            "latitude": self._lat,
+            "longitude": self._long,
+            "north_up": self._north_up,
+            "horizontal_flip": self._horizontal_flip,
+            "show_legend": self._show_legend,
+            "show_time": self._show_time,
+            "bodies": [point.describe(observer) for point in self._points],
+            "paths": [
+                path.describe()
+                for path in (
+                    self._winter_solstice,
+                    self._summer_solstice,
+                    self._sunpath_for(when.date()),
+                )
+            ],
+            "constellations": [
+                constellation.describe(obs_time)
+                for constellation in self._constellations
+            ],
+        }
 
     def plot_sky(self, output=None, when=None):
         """
@@ -203,7 +282,12 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         theta is the azimuth.
 
         Matplotlib takes these in (theta, r) coordinate pairs so it's (azimuth, altitude) for us.
+
+        Matplotlib is only imported here, rather than alongside the rest, so that
+        installations using the card instead of the image never pay to load it.
         """
+        plt = _pyplot()
+
         if when is None:
             when = datetime.datetime.now()
 
@@ -286,6 +370,7 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         """
         if self._today_sunpath is None or self._today_sunpath.date != date:
             self._today_sunpath = BodyPath(
+                "today",
                 self._planets[SUN],
                 # use today's midnight to hide discontinuities
                 datetime.datetime.combine(date, datetime.time()),
@@ -301,7 +386,8 @@ class Sky:  # pylint: disable=too-many-instance-attributes
 class BodyPath(object):
     """A line that some Body will travel on on some given day"""
 
-    def __init__(self, body, day, sky, fmt, color, linewidth=1, alpha=0.8):
+    def __init__(self, name, body, day, sky, fmt, color, linewidth=1, alpha=0.8):
+        self.name = name
         self._body = body
         self._day = day
         self._sky = sky
@@ -323,6 +409,21 @@ class BodyPath(object):
         times = [self._day + delta * interval for interval in range(24 * 3 + 1)]
         self.path = self._sky.compute_position(self._body, times)
 
+    def describe(self):
+        """
+        Describe this path as data: the fixed curve it traces out over the day.
+
+        A client is left to colour it however suits its theme, so only the name
+        and whether it is a dashed line go along with the shape.
+        """
+        azi, alt = self.path
+        return {
+            "name": self.name,
+            "dashed": self.fmt == "--",
+            "azimuth": np.round(np.degrees(azi), DEGREE_PLACES).tolist(),
+            "altitude": np.round(90 - alt, DEGREE_PLACES).tolist(),
+        }
+
     def draw(self, ax):
         """Draw this path on a matplotlib axis"""
         ax.plot(
@@ -339,9 +440,9 @@ class Point(object):
 
     def __init__(self, label, body, color, size, sky):
         self.label = label
+        self.color = color
+        self.size = size
         self._body = body
-        self._size = size
-        self._color = color
         self._sky = sky
 
     def draw(self, ax, observer):
@@ -350,10 +451,26 @@ class Point(object):
         ax.scatter(
             azi,
             alt,
-            s=self._size,
+            s=self.size,
             label=self.label,
             alpha=1.0,
-            color=self._color,
+            color=self.color,
             edgecolor="black",
         )
         return azi, alt
+
+    def describe(self, observer):
+        """
+        Describe where this body is, as data.
+
+        The colours are named rather than numeric so that they mean the same
+        thing to matplotlib and to a browser, which both know them.
+        """
+        ra, dec = self._sky.to_radec(observer.observe(self._body).xyz.au, observer.t)
+        return {
+            "label": self.label,
+            "color": self.color,
+            "size": self.size,
+            "ra": float(ra),
+            "dec": float(dec),
+        }

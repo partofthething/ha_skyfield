@@ -1,0 +1,7 @@
+# The tests import the integration package, whose __init__ sets up the Home
+# Assistant side of things, so Home Assistant has to be importable.
+homeassistant
+skyfield>=1.49
+matplotlib
+numpy
+pytz

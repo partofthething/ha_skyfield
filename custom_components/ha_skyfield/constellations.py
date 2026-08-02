@@ -88,6 +88,22 @@ class Constellation(object):
             alpha=0.1,
         )
 
+    def describe(self, obs_time):
+        """
+        Describe this figure as data, for a client that draws it itself.
+
+        The stars are given in sky coordinates rather than as points on a plot,
+        so a client can turn them itself as the night goes on, and the lines are
+        given as pairs of indices into that list rather than as repeated
+        coordinates, since most stars are shared between two lines or more.
+        """
+        ra, dec = self._sky.to_radec(self._star_xyz, obs_time)
+        return {
+            "name": self.name,
+            "stars": np.transpose([ra, dec]).tolist(),
+            "lines": self._lines.tolist(),
+        }
+
 
 def _build_stick_figure(radec_pairs):
     """
