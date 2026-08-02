@@ -12,7 +12,7 @@ and does not need any of this.
 """
 
 import logging
-import os
+import pathlib
 
 import voluptuous as vol
 from homeassistant.components import frontend
@@ -36,6 +36,7 @@ CONF_NORTH_UP = "north_up"
 CONF_HORIZONTAL_FLIP = "horizontal_flip"
 
 CARD_FILENAME = "skyfield-card.js"
+CARD_PATH = pathlib.Path(__file__).parent / "frontend" / CARD_FILENAME
 CARD_URL = f"/{DOMAIN}/{CARD_FILENAME}"
 SKY_URL = f"/api/{DOMAIN}/sky"
 
@@ -63,9 +64,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the sky data endpoint and register the card that draws it."""
     conf = config.get(DOMAIN)
     if conf is None:
-        # Only the legacy camera or sensor platform is configured. Those build
-        # their own Sky and render their own images, so there is nothing to serve.
-        return True
+        # Nothing addressed to us by name, so something else pulled us in: the
+        # camera or sensor platform, most likely. Serve the card anyway, on
+        # default settings, rather than leave somebody who adds it to a dashboard
+        # staring at "no such card exists" with nothing to say why.
+        conf = CONFIG_SCHEMA({DOMAIN: {}})[DOMAIN]
 
     sky = _build_sky(hass, conf)
     # loading pulls in an ephemeris, downloading it the first time, so it cannot
@@ -76,7 +79,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.http.register_view(SkyView(hass, sky))
     await _register_card(hass)
 
-    _LOGGER.debug("Skyfield is serving the sky at %s", SKY_URL)
+    # at info, so that there is something positive to look for in the log when a
+    # dashboard says the card does not exist
+    _LOGGER.info(
+        "Skyfield is serving the sky at %s and the card at %s", SKY_URL, CARD_URL
+    )
     return True
 
 
@@ -109,14 +116,21 @@ async def _register_card(hass: HomeAssistant) -> None:
     written in YAML. The version is tacked on so that upgrading actually gets the
     new card rather than whatever the browser cached last time.
     """
+    # Home Assistant will happily register a route to a file that is not there
+    # and then answer 404 when the browser asks for it, which shows up in a
+    # dashboard as the card not existing and says nothing about why. So check.
+    if not await hass.async_add_executor_job(CARD_PATH.is_file):
+        _LOGGER.error(
+            "Cannot serve the Lovelace card: %s is missing. The frontend "
+            "directory has to be installed next to the Python files, so check "
+            "that whatever copied this integration into place brought it along. "
+            "The camera platform works without it.",
+            CARD_PATH,
+        )
+        return
+
     await hass.http.async_register_static_paths(
-        [
-            StaticPathConfig(
-                CARD_URL,
-                os.path.join(os.path.dirname(__file__), "frontend", CARD_FILENAME),
-                True,
-            )
-        ]
+        [StaticPathConfig(CARD_URL, str(CARD_PATH), True)]
     )
 
     integration = await async_get_integration(hass, DOMAIN)

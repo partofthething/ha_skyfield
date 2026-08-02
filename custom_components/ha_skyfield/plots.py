@@ -1,10 +1,15 @@
 """Code that makes plot."""
 
-import matplotlib.pyplot as plt
-
 
 def plot_all_sun_paths(data):
-    """Show where the sun goes throughout the year."""
+    """
+    Show where the sun goes throughout the year.
+
+    This one is for poking at by hand rather than for Home Assistant, so it
+    brings in matplotlib itself instead of making everyone else load it.
+    """
+    import matplotlib.pyplot as plt
+
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="polar")  # pylint: disable=invalid-name
     alts, azis = zip(*data)
