@@ -1,6 +1,6 @@
 {
   "domain": "ha_skyfield",
-  "name": "Polar plots of the sun, moon, and planets",
+  "name": "HA Skyfield",
   "documentation": "https://github.com/partofthething/ha_skyfield",
   "config_flow": true,
   "single_config_entry": true,
@@ -10,5 +10,5 @@
   "after_dependencies": ["lovelace"],
   "codeowners": ["@partofthething"],
   "requirements": ["skyfield>=1.49", "numpy", "Pillow"],
-  "version": "3.0.1"
+  "version": "3.0.2"
 }

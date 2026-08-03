@@ -39,7 +39,7 @@ from .const import (
     DOMAIN,
 )
 
-TITLE = "Sky chart"
+TITLE = "HA Skyfield"
 
 
 def default_options(hass: HomeAssistant) -> dict[str, Any]:
@@ -147,7 +147,7 @@ def _read_choices() -> tuple[list[str], list[str]]:
 
 
 class SkyfieldConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Add the sky chart from Settings, or take over a YAML configuration."""
+    """Add HA Skyfield from Settings, or take over a YAML configuration."""
 
     VERSION = 1
 

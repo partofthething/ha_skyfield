@@ -1,10 +1,10 @@
 {
-  "title": "Sky chart",
+  "title": "HA Skyfield",
   "config": {
     "step": {
       "user": {
-        "title": "Sky chart",
-        "description": "Where the sky is being looked at from, and what to draw in it. All of this can be changed later.",
+        "title": "HA Skyfield",
+        "description": "Polar plots of the sun, moon, and planets. Where the sky is being looked at from, and what to draw in it. All of this can be changed later.",
         "data": {
           "latitude": "Latitude",
           "longitude": "Longitude",
@@ -28,14 +28,14 @@
       }
     },
     "abort": {
-      "already_configured": "The sky chart is already set up."
+      "already_configured": "HA Skyfield is already set up."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Sky chart",
-        "description": "Saving these redraws the chart straight away.",
+        "title": "HA Skyfield",
+        "description": "Polar plots of the sun, moon, and planets. Saving these redraws the chart straight away.",
         "data": {
           "latitude": "Latitude",
           "longitude": "Longitude",

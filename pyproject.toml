@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ha-skyfield"
-version = "3.0.1"
+version = "3.0.2"
 description = "Polar charts of the Sun, Moon, planets and constellations, as SVG"
 readme = "README.md"
 license = { file = "LICENSE.txt" }

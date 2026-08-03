@@ -26,7 +26,7 @@ See [`pebble/README.md`](pebble/README.md) for the watch and
 * Install this in your `custom_components` folder (or add the repository to HACS)
   and restart
 * Go to **Settings > Devices & Services > Add Integration** and search for
-  *polar plots*. Everything has a sensible default, so you can simply accept the
+  *HA Skyfield*. Everything has a sensible default, so you can simply accept the
   form; the location starts at your home location.
 * Add this card to your dashboard:
 ```yaml
