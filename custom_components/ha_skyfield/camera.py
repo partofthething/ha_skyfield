@@ -8,11 +8,16 @@ a heavy thing to make every installation build for one image; it is now painted
 by :mod:`.raster` from the same description of the chart the card draws, using
 Pillow, which Home Assistant installs anyway.
 
-The picture is a raster one because a camera entity has to be. Serving the SVG
-directly and saying so in ``content_type`` looks as though it ought to work and
-does not: the dashboard will not show it, and the snapshot button hands back the
-bytes under a .jpg name whatever they are. ``image_type: svg`` is still there
-for anyone fetching from the entity themselves, but it is not the default.
+A picture rather than an SVG by default, because a camera entity is treated as
+one throughout: the snapshot service writes whatever bytes it is given under
+whatever name it was asked for, and anything that resizes a camera image assumes
+it can. ``image_type: svg`` is there for anyone fetching from the entity
+themselves.
+
+The one thing to be careful of here is ``content_type``. ``Camera.__init__``
+assigns it as an ordinary attribute, so it has to be set after that call and as
+one too -- see the note in :meth:`SkyFieldCam.__init__`, which is there because
+getting it wrong twice cost a good deal of confusion.
 """
 
 from __future__ import annotations
@@ -164,15 +169,13 @@ class SkyFieldCam(Camera):
         self._theme = theme or DEFAULT_THEME
         self._width = width or DEFAULT_WIDTH
 
-    @property
-    def content_type(self):
-        """
-        What the picture is.
-
-        Overridden as a property rather than set as an attribute so that it wins
-        however the Camera base class happens to declare it.
-        """
-        return CONTENT_TYPES[self._image_type]
+        # Camera.__init__ assigns self.content_type, so this has to be set after
+        # it and as a plain attribute. A property here has no setter for the base
+        # class to assign to, which is an AttributeError during setup and an
+        # entity that never appears; a class attribute is simply overwritten,
+        # which is worse, because then the chart is served as a JPEG that is not
+        # one and nothing says so.
+        self.content_type = CONTENT_TYPES[self._image_type]
 
     @property
     def frame_interval(self):

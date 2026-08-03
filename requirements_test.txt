@@ -1,4 +1,8 @@
-# The integration half needs Home Assistant; the standalone half needs none of it.
+# The integration half needs Home Assistant; the standalone half needs none of
+# it. Without these, tests/test_platforms.py skips itself and the rest still run.
 homeassistant
+PyTurboJPEG   # homeassistant.components.camera imports it at module level
+
 skyfield>=1.49
 numpy
+pillow        # only needed to draw the chart as a picture

@@ -2,10 +2,10 @@
 Paint the sky into a picture.
 
 The chart is drawn as SVG everywhere it can be, because it stays sharp at any
-size and weighs almost nothing. But Home Assistant's camera entity turns out to
-want a raster image whatever content type it is told about -- the dashboard will
-not show an SVG from one, and its snapshot button saves the bytes under a .jpg
-name regardless -- so there has to be a picture as well.
+size and weighs almost nothing. A picture is for the places that will not take
+one: Home Assistant's camera entity, whose snapshot service writes the bytes
+under whatever name it was asked for and whose consumers expect to be able to
+resize what they are given, and anything else that wants pixels.
 
 This is not a second drawing. :mod:`.scene` works out where everything goes and
 :mod:`.styles` says what it looks like, both shared with :mod:`.svg`; all that

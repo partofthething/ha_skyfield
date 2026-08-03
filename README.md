@@ -221,8 +221,14 @@ so the suite checks that directly rather than trusting it:
 * `test_raster.py` checks the painted chart against the scene it was painted
   from — that a body lands on its own spot, and that nothing meant to be inside
   the horizon escapes it.
+* `test_platforms.py` builds the Home Assistant entities for real and asks them
+  for a picture. `Camera.__init__` assigns `self.content_type` as an ordinary
+  attribute, so a subclass that makes it a property breaks setup entirely and
+  one that makes it a class attribute has it silently overwritten — neither is
+  visible until something actually constructs the entity.
 
-The three cross-language ones skip themselves if `node` or a C compiler is
-missing, and `test_raster.py` skips without Pillow.
+The cross-language ones skip themselves if `node` or a C compiler is missing,
+`test_raster.py` skips without Pillow, and `test_platforms.py` skips without
+Home Assistant.
 
 
