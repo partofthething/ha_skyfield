@@ -2,9 +2,13 @@
   "domain": "ha_skyfield",
   "name": "Polar plots of the sun, moon, and planets",
   "documentation": "https://github.com/partofthething/ha_skyfield",
+  "config_flow": true,
+  "single_config_entry": true,
+  "integration_type": "service",
+  "iot_class": "calculated",
   "dependencies": ["http", "frontend"],
   "after_dependencies": ["lovelace"],
   "codeowners": ["@partofthething"],
   "requirements": ["skyfield>=1.49", "numpy", "Pillow"],
-  "version": "3.0.0"
+  "version": "3.0.1"
 }

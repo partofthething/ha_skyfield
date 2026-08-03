@@ -25,4 +25,6 @@ if find_spec("homeassistant") is not None:  # pragma: no cover - needs a HA inst
         CONFIG_SCHEMA,
         DOMAIN,
         async_setup,
+        async_setup_entry,
+        async_unload_entry,
     )

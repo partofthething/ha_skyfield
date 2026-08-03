@@ -93,10 +93,25 @@ class TestPackaging(unittest.TestCase):
         included = PYPROJECT["tool"]["setuptools"]["package-data"]["ha_skyfield"]
         self.assertIn("*.dat", included)
         self.assertIn("frontend/*.js", included)
+        # a form with no translations is shown as a list of raw option keys
+        self.assertIn("strings.json", included)
+        self.assertIn("translations/*.json", included)
 
     def test_the_things_it_needs_are_actually_there(self):
         self.assertTrue((PACKAGE / "constellations_by_RA_Dec.dat").is_file())
         self.assertTrue((PACKAGE / "frontend" / "skyfield-card.js").is_file())
+        self.assertTrue((PACKAGE / "translations" / "en.json").is_file())
+
+    def test_the_ui_can_configure_it(self):
+        """
+        A config flow is three things agreeing, and the manifest is one of them.
+
+        Without the manifest key the flow is never offered, however well it
+        works, and the integration can then only be set up from YAML.
+        """
+        self.assertIs(MANIFEST["config_flow"], True)
+        self.assertTrue((PACKAGE / "config_flow.py").is_file())
+        self.assertTrue((PACKAGE / "strings.json").is_file())
 
     def test_there_is_a_command(self):
         self.assertIn("skyfield-sky", PYPROJECT["project"]["scripts"])

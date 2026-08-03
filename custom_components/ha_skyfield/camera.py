@@ -31,19 +31,22 @@ from homeassistant.components.camera import Camera
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.helpers.config_validation import PLATFORM_SCHEMA
 
+from .const import (
+    CONF_CONSTELLATION_LIST,
+    CONF_HORIZONTAL_FLIP,
+    CONF_NORTH_UP,
+    CONF_PLANET_LIST,
+    CONF_SHOW_CONSTELLATIONS,
+    CONF_SHOW_LEGEND,
+    CONF_SHOW_TIME,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "skyfield"
 
-CONF_SHOW_TIME = "show_time"
-CONF_SHOW_LEGEND = "show_legend"
-CONF_SHOW_CONSTELLATIONS = "show_constellations"
-CONF_PLANET_LIST = "planet_list"
-CONF_CONSTELLATION_LIST = "constellations_list"
-# could detect north to be up if location is in souther hemisphere
-# but for no we just make it an option
-CONF_NORTH_UP = "north_up"
-CONF_HORIZONTAL_FLIP = "horizontal_flip"
+# the options this platform has of its own; the ones it shares with the
+# integration are named in const.py so that the two cannot drift apart
 CONF_IMAGE_TYPE = "image_type"
 CONF_THEME = "theme"
 CONF_WIDTH = "width"

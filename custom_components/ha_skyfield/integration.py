@@ -11,6 +11,13 @@ The chart is also served ready-drawn at `/api/ha_skyfield/sky.svg`, for anything
 that would rather be handed a picture than draw one, and packed small at
 `/api/ha_skyfield/sky.pebble` for a watch. The older camera entity is still
 available as `camera: platform: ha_skyfield` and does not need any of this.
+
+The settings live in a config entry, which is to say in the UI, and an
+`ha_skyfield:` block in configuration.yaml is imported into one the first time it
+is seen. So there are two ways in here -- `async_setup`, which only hands the
+YAML over to the config flow, and `async_setup_entry`, which does the work -- and
+the sky can be rebuilt while Home Assistant is running, when somebody changes
+the options.
 """
 
 import logging
@@ -22,23 +29,34 @@ from aiohttp import web
 from homeassistant.components import frontend
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
+from .config_flow import default_options
+from .const import (
+    CONF_CONSTELLATION_LIST,
+    CONF_HORIZONTAL_FLIP,
+    CONF_NORTH_UP,
+    CONF_PLANET_LIST,
+    CONF_SHOW_CONSTELLATIONS,
+    CONF_SHOW_LEGEND,
+    CONF_SHOW_TIME,
+    DOMAIN,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "ha_skyfield"
-
-CONF_SHOW_TIME = "show_time"
-CONF_SHOW_LEGEND = "show_legend"
-CONF_SHOW_CONSTELLATIONS = "show_constellations"
-CONF_PLANET_LIST = "planet_list"
-CONF_CONSTELLATION_LIST = "constellations_list"
-CONF_NORTH_UP = "north_up"
-CONF_HORIZONTAL_FLIP = "horizontal_flip"
+# The one sky, and whether the routes to it have been laid down. Both hang off
+# hass.data[DOMAIN] because a view is registered once for the life of the
+# process while the sky is rebuilt whenever the options change, so the views
+# have to look the sky up rather than hold on to one.
+DATA_SKY = "sky"
+DATA_SERVING = "serving"
 
 CARD_FILENAME = "skyfield-card.js"
 CARD_PATH = pathlib.Path(__file__).parent / "frontend" / CARD_FILENAME
@@ -69,59 +87,133 @@ CONFIG_SCHEMA = vol.Schema(
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the sky data endpoint and register the card that draws it."""
+    """
+    Hand an ``ha_skyfield:`` block over to the config flow, if there is one.
+
+    Nothing is set up here: the settings live in a config entry now, and this is
+    only the way in for somebody who has had them in configuration.yaml since
+    before that was so.
+    """
     conf = config.get(DOMAIN)
     if conf is None:
-        # Nothing addressed to us by name, so something else pulled us in: the
-        # camera or sensor platform, most likely. Serve the card anyway, on
-        # default settings, rather than leave somebody who adds it to a dashboard
-        # staring at "no such card exists" with nothing to say why.
-        conf = CONFIG_SCHEMA({DOMAIN: {}})[DOMAIN]
+        # Nothing addressed to us by name, so either an entry is being set up or
+        # the camera or sensor platform pulled us in, and neither wants anything
+        # from here.
+        return True
 
-    sky = _build_sky(hass, conf)
-    # loading pulls in an ephemeris, downloading it the first time, so it cannot
-    # happen on the event loop
-    await hass.async_add_executor_job(sky.load, hass.config.path(DOMAIN))
+    if hass.config_entries.async_entries(DOMAIN):
+        # The import happened on some earlier run and the options have been the
+        # entry's business ever since, so say so rather than let somebody edit
+        # YAML that is no longer read.
+        _LOGGER.warning(
+            "The ha_skyfield: block in your configuration.yaml has already been "
+            "imported and is no longer read. The settings are now behind the "
+            "Configure button in Settings > Devices & Services, and the block "
+            "can be deleted"
+        )
+        return True
 
-    hass.data[DOMAIN] = sky
-    hass.http.register_view(SkyView(hass, sky))
-    hass.http.register_view(SkySvgView(hass, sky))
-    hass.http.register_view(SkyPngView(hass, sky))
-    hass.http.register_view(SkyPebbleView(hass, sky))
-    await _register_card(hass)
-
-    # at info, so that there is something positive to look for in the log when a
-    # dashboard says the card does not exist
-    _LOGGER.info(
-        "Skyfield is serving the sky at %s, drawn at %s and %s, packed at %s, "
-        "and the card at %s",
-        SKY_URL,
-        SKY_SVG_URL,
-        SKY_PNG_URL,
-        SKY_PEBBLE_URL,
-        CARD_URL,
+    hass.async_create_task(
+        hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": SOURCE_IMPORT}, data=conf
+        )
     )
     return True
 
 
-def _build_sky(hass: HomeAssistant, conf: ConfigType):
-    """Build the Sky described by the configuration."""
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Build the sky the entry describes, and serve it and the card."""
+    settings = {**default_options(hass), **entry.options}
+    # building a Sky reads a time zone and loading it pulls in an ephemeris,
+    # downloading it the first time, so neither can happen on the event loop
+    try:
+        sky = await hass.async_add_executor_job(
+            partial(
+                _build_sky,
+                settings,
+                str(hass.config.time_zone),
+                hass.config.path(DOMAIN),
+            )
+        )
+    except OSError as err:
+        # the first setup fetches a 17 MB ephemeris, which is a long download to
+        # lose to a moment's bad network and then need a restart to retry
+        raise ConfigEntryNotReady(f"cannot load the ephemeris: {err}") from err
+
+    data = hass.data.setdefault(DOMAIN, {})
+    data[DATA_SKY] = sky
+
+    # A view cannot be unregistered, and registering one twice is an error, so
+    # the routes are laid down once and left there. They find the sky through
+    # hass.data, so a reload with new options is simply a different sky at the
+    # same address.
+    if not data.get(DATA_SERVING):
+        hass.http.register_view(SkyView(hass))
+        hass.http.register_view(SkySvgView(hass))
+        hass.http.register_view(SkyPngView(hass))
+        hass.http.register_view(SkyPebbleView(hass))
+        await _register_card(hass)
+        data[DATA_SERVING] = True
+
+        # at info, so that there is something positive to look for in the log
+        # when a dashboard says the card does not exist
+        _LOGGER.info(
+            "Skyfield is serving the sky at %s, drawn at %s and %s, packed at %s, "
+            "and the card at %s",
+            SKY_URL,
+            SKY_SVG_URL,
+            SKY_PNG_URL,
+            SKY_PEBBLE_URL,
+            CARD_URL,
+        )
+
+    entry.async_on_unload(entry.add_update_listener(_options_changed))
+    return True
+
+
+async def _options_changed(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Redraw the sky with the settings somebody just saved."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """
+    Put the sky away.
+
+    The routes stay registered, since they cannot be taken back; they answer 503
+    until there is a sky again, which is what a reload does a moment later.
+    """
+    hass.data.get(DOMAIN, {}).pop(DATA_SKY, None)
+    return True
+
+
+def _build_sky(settings: dict, tzname: str, datadir: str):
+    """Build the Sky the settings describe, and load its data."""
     from .bodies import Sky
 
-    return Sky(
-        (
-            conf.get(CONF_LATITUDE, hass.config.latitude),
-            conf.get(CONF_LONGITUDE, hass.config.longitude),
-        ),
-        str(hass.config.time_zone),
-        show_constellations=conf[CONF_SHOW_CONSTELLATIONS],
-        show_time=conf[CONF_SHOW_TIME],
-        show_legend=conf[CONF_SHOW_LEGEND],
-        constellation_list=conf.get(CONF_CONSTELLATION_LIST),
-        planet_list=conf.get(CONF_PLANET_LIST),
-        north_up=conf[CONF_NORTH_UP],
-        horizontal_flip=conf[CONF_HORIZONTAL_FLIP],
+    sky = Sky(
+        (settings[CONF_LATITUDE], settings[CONF_LONGITUDE]),
+        tzname,
+        show_constellations=settings[CONF_SHOW_CONSTELLATIONS],
+        show_time=settings[CONF_SHOW_TIME],
+        show_legend=settings[CONF_SHOW_LEGEND],
+        constellation_list=_chosen(settings[CONF_CONSTELLATION_LIST]),
+        planet_list=_chosen(settings[CONF_PLANET_LIST]),
+        north_up=settings[CONF_NORTH_UP],
+        horizontal_flip=settings[CONF_HORIZONTAL_FLIP],
     )
+    sky.load(datadir)
+    return sky
+
+
+def _chosen(names):
+    """
+    What was picked, or None for "everything", which is what Sky calls it.
+
+    Choosing nothing in the UI means the usual sky rather than an empty one, the
+    same as leaving the option out of YAML always has.
+    """
+    return list(names) or None
 
 
 async def _register_card(hass: HomeAssistant) -> None:
@@ -202,18 +294,25 @@ class _SkyViewBase(HomeAssistantView):
     """
     Something served from the one sky the integration set up.
 
+    The sky is looked up rather than held onto, because a view lives as long as
+    the process and the sky only as long as the settings it was built from.
+
     Describing the sky means asking skyfield where a hundred-odd things are, so
     it goes to an executor rather than holding up the event loop.
     """
 
     requires_auth = True
 
-    def __init__(self, hass: HomeAssistant, sky) -> None:
+    def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
-        self._sky = sky
 
     async def _model(self) -> dict:
-        return await self._hass.async_add_executor_job(self._sky.sky_model)
+        sky = self._hass.data.get(DOMAIN, {}).get(DATA_SKY)
+        if sky is None:
+            # between an unload and the reload that follows it, or after a
+            # failed setup: momentary, and worth saying plainly
+            raise web.HTTPServiceUnavailable(text="the sky is not set up\n")
+        return await self._hass.async_add_executor_job(sky.sky_model)
 
 
 class SkyView(_SkyViewBase):

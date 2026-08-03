@@ -1,7 +1,7 @@
 {
   "name": "skyfield",
   "author": "Nick Touran",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "keywords": [
     "pebble-app",
     "astronomy"

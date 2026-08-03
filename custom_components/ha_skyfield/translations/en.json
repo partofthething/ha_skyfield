@@ -1,0 +1,62 @@
+{
+  "title": "Sky chart",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sky chart",
+        "description": "Where the sky is being looked at from, and what to draw in it. All of this can be changed later.",
+        "data": {
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "show_constellations": "Draw the constellations",
+          "show_time": "Show the time",
+          "show_legend": "Show the legend",
+          "north_up": "Put north at the top",
+          "horizontal_flip": "Flip the chart left to right",
+          "planet_list": "Planets",
+          "constellations_list": "Constellations"
+        },
+        "data_description": {
+          "latitude": "Defaults to your home location.",
+          "longitude": "Defaults to your home location.",
+          "show_time": "The card and the drawn chart put the time under the chart.",
+          "show_legend": "Which dot is which planet.",
+          "north_up": "Usually what you want in the southern hemisphere.",
+          "planet_list": "Leave empty for the Sun, the Moon and all the planets.",
+          "constellations_list": "Leave empty for the zodiac plus Cassiopeia, Orion, Pegasus and Ursa Major."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "The sky chart is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sky chart",
+        "description": "Saving these redraws the chart straight away.",
+        "data": {
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "show_constellations": "Draw the constellations",
+          "show_time": "Show the time",
+          "show_legend": "Show the legend",
+          "north_up": "Put north at the top",
+          "horizontal_flip": "Flip the chart left to right",
+          "planet_list": "Planets",
+          "constellations_list": "Constellations"
+        },
+        "data_description": {
+          "latitude": "Somewhere other than home, if you like.",
+          "longitude": "Somewhere other than home, if you like.",
+          "show_time": "The card and the drawn chart put the time under the chart.",
+          "show_legend": "Which dot is which planet.",
+          "north_up": "Usually what you want in the southern hemisphere.",
+          "planet_list": "Leave empty for the Sun, the Moon and all the planets.",
+          "constellations_list": "Leave empty for the zodiac plus Cassiopeia, Orion, Pegasus and Ursa Major."
+        }
+      }
+    }
+  }
+}

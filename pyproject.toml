@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ha-skyfield"
-version = "3.0"
+version = "3.0.1"
 description = "Polar charts of the Sun, Moon, planets and constellations, as SVG"
 readme = "README.md"
 license = { file = "LICENSE.txt" }
@@ -42,7 +42,9 @@ where = ["custom_components"]
 include = ["ha_skyfield*"]
 
 [tool.setuptools.package-data]
-ha_skyfield = ["*.dat", "frontend/*.js"]
+# strings.json and translations/ are what names the options in the Home
+# Assistant UI; without them a form is a list of raw option keys
+ha_skyfield = ["*.dat", "frontend/*.js", "strings.json", "translations/*.json"]
 
 [tool.ruff]
 line-length = 88

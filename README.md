@@ -2,36 +2,50 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/partofthething/ha_skyfield)
 
-A live polar sun path chart for your location. Besides the Sun, it also shows the
-Moon and a few major planets. Plus, it shows the Winter and Summer solstice sun
-paths so you can see where you are in the seasons!
+A live polar sun path chart for your location. Besides the Sun, it also shows the Moon and
+a few major planets. Plus, it shows the Winter and Summer solstice sun paths and the
+current path so you can see where you are in the seasons! It's a super interesting chart
+because all at once it gives you an indication of the season, the time, and the sun
+position, which, if you think about it, helps you orient yourself directionally just based
+on observing the sun.
 
-![Screenshot of the skyfield](screenshot.png)
+| | |
+|---|---|
+| ![The chart in light mode](screenshot.png) | ![The same chart in dark mode](screenshot_dark.png) |
+
+The card follows your theme, so it draws itself either way.
 
 This uses the [skyfield library](https://rhodesmill.org/skyfield/) to do the computations. 
 
-It is three things in one repository, drawing one chart:
-
-* a **custom component for [Home Assistant](https://www.home-assistant.io/)**, with
-  a Lovelace card that draws itself in the browser
-* a **command line tool and small web server** that write the same chart as an SVG
-  file, for a web page or anything else that wants a picture
-* a **Pebble watch face**, in [`pebble/`](pebble/)
 
 See [`pebble/README.md`](pebble/README.md) for the watch and
 [Standalone](#standalone) below for everything outside Home Assistant.
 
 ## To use with Home Assistant
 
-* Install this in your `custom_components` folder
-* Add the following to your home assistant config and restart:
-```yaml
-ha_skyfield:
-```
+* Install this in your `custom_components` folder (or add the repository to HACS)
+  and restart
+* Go to **Settings > Devices & Services > Add Integration** and search for
+  *polar plots*. Everything has a sensible default, so you can simply accept the
+  form; the location starts at your home location.
 * Add this card to your dashboard:
 ```yaml
 type: custom:skyfield-card
 ```
+
+Optional card configuration:
+
+* `title` a heading for the card
+* `show_time` show a timestamp under the chart
+* `show_legend` show a legend of the bodies
+* `show_constellations` draw the constellations
+* `north_up` (boolean) puts North at the top (useful in the Southern Hemisphere)
+* `horizontal_flip` (boolean) flips projection horizontally
+* `refresh_interval` seconds between asking the server for new positions (default 600)
+* `redraw_interval` seconds between redraws (default 30)
+
+The settings can be changed in yaml or at any time from the **Configure** button beside
+the integration, and the chart is redrawn as soon as you save them.
 
 The card registers itself as a dashboard resource, so there is normally nothing to
 add by hand. It draws itself as SVG, so it stays sharp at any size and takes its
@@ -58,22 +72,20 @@ it. Those only change slowly, so the browser can turn the sky itself as the
 minutes pass — it redraws twice a minute and only asks the server for new
 positions every ten minutes.
 
-Optional card configuration:
 
-* `title` a heading for the card
-* `show_time` show a timestamp under the chart
-* `show_legend` show a legend of the bodies
-* `show_constellations` draw the constellations
-* `north_up` (boolean) puts North at the top (useful in the Southern Hemisphere)
-* `horizontal_flip` (boolean) flips projection horizontally
-* `refresh_interval` seconds between asking the server for new positions (default 600)
-* `redraw_interval` seconds between redraws (default 30)
-
-Anything you leave out follows the `ha_skyfield:` configuration below. The
+Anything you leave out follows what the integration is configured with. The
 solstice path colours can be restyled with the `--skyfield-winter-color` and
 `--skyfield-summer-color` theme variables.
 
-Optional configuration under `ha_skyfield:`:
+### If you already have this configured in YAML
+
+An `ha_skyfield:` block in `configuration.yaml` still works: the first time Home
+Assistant starts with this version it is read once and turned into a
+configuration you can edit in the UI, keeping every setting it had. After that
+the block is no longer read — there is a warning in the log saying so — and it
+can be deleted.
+
+The options were, and the ones in the UI are the same:
 
 * `show_constellations` enable or disable the constellations (default is True).
 * `show_time` and `show_legend` defaults for the card
@@ -84,9 +96,10 @@ Optional configuration under `ha_skyfield:`:
 * `horizontal_flip` (boolean) flips projection horizontally
 * `latitude` and `longitude` if you want somewhere other than your home
 
-## The image version
+## The old image version
 
-If you would rather have an image than a card, there is still a camera entity:
+If you would rather have an image than a card for backwards compatibility, there is still
+a camera entity:
 
 ```yaml
 camera:
@@ -94,8 +107,10 @@ camera:
   show_constellations: false
 ```
 
-Then add a picture entity to your GUI with this camera. It takes the same options
-as `ha_skyfield:` above, plus:
+Then add a picture entity to your GUI with this camera. It is a YAML platform and
+stands on its own — it draws its own sky and needs nothing else set up — so add
+the integration as well if you want the card or the endpoints below. It takes the
+same options listed above, plus:
 
 * `image_type` `png` (default), `jpg`, or `svg`. A chart is fine lines on flat
   colour, which is the worst thing to hand a JPEG, so `png` is the one to use.
@@ -115,7 +130,13 @@ any size.
 
 ## Standalone
 
-None of the below needs Home Assistant.
+Beyond the home assistant integration, this also includes the following standalone
+features:
+
+* a **command line tool and small web server** that write the same chart as an SVG
+  file, for a web page or anything else that wants a picture
+* a **Pebble watch face**, in [`pebble/`](pebble/)
+
 
 ```console
 $ pip install git+https://github.com/partofthething/ha_skyfield
@@ -221,6 +242,10 @@ so the suite checks that directly rather than trusting it:
 * `test_raster.py` checks the painted chart against the scene it was painted
   from — that a body lands on its own spot, and that nothing meant to be inside
   the horizon escapes it.
+* `test_config_flow.py` checks that the form the UI shows offers everything the
+  YAML schema ever did, that every field on it reaches the sky, and that an
+  imported YAML configuration comes out the other side unchanged. The import runs
+  once on somebody's real settings, so there is no second chance at it.
 * `test_platforms.py` builds the Home Assistant entities for real and asks them
   for a picture. `Camera.__init__` assigns `self.content_type` as an ordinary
   attribute, so a subclass that makes it a property breaks setup entirely and
