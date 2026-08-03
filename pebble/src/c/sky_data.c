@@ -5,11 +5,15 @@
  * what the payload sends instead of a name. The radii are the matplotlib marker
  * areas brought down to something sensible on a watch: the Sun and Moon want to
  * be recognisable, and the outer planets are dots.
+ *
+ * Two pixels larger all round than they first were. The stars are drawn at one
+ * pixel, and a planet at two was near enough the same dot that the eye had to
+ * go looking for the colour to tell them apart.
  */
 const SkyBodyStyle SKY_BODIES[SKY_BODY_COUNT] = {
-    {"Sun", 5},     {"Mercury", 2}, {"Venus", 2},
-    {"Moon", 4},    {"Mars", 2},    {"Jupiter", 3},
-    {"Saturn", 3},  {"Uranus", 2},  {"Neptune", 2},
+    {"Sun", 7},     {"Mercury", 4}, {"Venus", 4},
+    {"Moon", 6},    {"Mars", 4},    {"Jupiter", 5},
+    {"Saturn", 5},  {"Uranus", 4},  {"Neptune", 4},
 };
 
 /* Little-endian, a byte at a time, because the fields are not aligned. */

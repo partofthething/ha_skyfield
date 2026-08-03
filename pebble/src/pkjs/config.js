@@ -93,7 +93,9 @@ module.exports = function page(settings) {
       "useLocation",
       "Use the phone's location",
       settings.useLocation,
-      "Off uses the coordinates below, or the server's own if those are empty too."
+      "Off uses the coordinates below, or the server's own if those are empty " +
+        "too. The weather, if it is on, needs one or the other &mdash; it has " +
+        "nowhere to look up a place the server keeps to itself."
     ),
     field("latitude", "Latitude", settings.latitude, {
       type: "number",
@@ -123,7 +125,38 @@ module.exports = function page(settings) {
         "the part that costs battery.",
     }),
 
+    "<h2>In the corners</h2>",
+    '<p class="note">Only on a watch with corners to put them in; a round ' +
+      "screen has none, and ignores all four of these.</p>",
+    toggle("showBattery", "Battery, top right", settings.showBattery !== false),
+    toggle(
+      "showSteps",
+      "Steps, top left",
+      settings.showSteps !== false,
+      "Needs a watch that counts them. Past ten thousand it counts in " +
+        "thousands, so 12.3k."
+    ),
+    toggle(
+      "showHeart",
+      "Heart rate, bottom left",
+      settings.showHeart !== false,
+      "Whatever the watch last measured by itself. This never asks the sensor " +
+        "to run more often than your health settings already have it running, " +
+        "so it costs no battery and can be a few minutes old."
+    ),
+    toggle(
+      "showWeather",
+      "Weather, bottom right",
+      settings.showWeather !== false,
+      "The one reading here the watch cannot take for itself, so the phone " +
+        "fetches it hourly from open-meteo.com &mdash; the only thing this " +
+        "watchface asks of anyone but your own server, and it is sent your " +
+        "coordinates to answer. Off means no fetch at all."
+    ),
+    toggle("fahrenheit", "Fahrenheit", settings.fahrenheit, "Off is Celsius."),
+
     '<button id="save">Save</button>',
+
 
     "<script>",
     'document.getElementById("save").addEventListener("click", function () {',
@@ -132,7 +165,8 @@ module.exports = function page(settings) {
     "  text.forEach(function (name) {",
     "    out[name] = document.getElementById(name).value.trim();",
     "  });",
-    '  var flags = ["useLocation", "showStars", "northUp", "horizontalFlip"];',
+    "  var flags = [\"useLocation\", \"showStars\", \"northUp\", \"horizontalFlip\",",
+    '    "showBattery", "showSteps", "showHeart", "showWeather", "fahrenheit"];',
     "  flags.forEach(function (name) {",
     "    out[name] = document.getElementById(name).checked;",
     "  });",

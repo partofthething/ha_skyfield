@@ -14,7 +14,8 @@
     "enableMultiJS": true,
     "capabilities": [
       "configurable",
-      "location"
+      "location",
+      "health"
     ],
     "targetPlatforms": [
       "aplite",
@@ -32,7 +33,13 @@
       "PAYLOAD": 0,
       "NORTH_UP": 1,
       "HORIZONTAL_FLIP": 2,
-      "SHOW_STARS": 3
+      "SHOW_STARS": 3,
+      "SHOW_BATTERY": 4,
+      "SHOW_STEPS": 5,
+      "SHOW_HEART": 6,
+      "SHOW_WEATHER": 7,
+      "WEATHER_TEMPERATURE": 8,
+      "WEATHER_CONDITION": 9
     },
     "resources": {
       "media": []

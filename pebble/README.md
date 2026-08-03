@@ -60,6 +60,60 @@ The watch face fetches from a skyfield server. Either will do:
 
 Both go in the settings page, in the Pebble app.
 
+## The corners
+
+On a rectangular screen the horizon is a circle inscribed in it, which leaves
+four corners doing nothing. Each holds one reading, and each can be turned off
+in the settings page. A round watch has no corners, so `chalk` and `gabbro`
+leave all four out however they are set.
+
+| | |
+|---|---|
+| top left | steps today, with a walking figure |
+| top right | battery, green on the charger and red at 20% |
+| bottom left | heart rate, with a heart |
+| bottom right | temperature and a weather icon |
+
+Three of those the watch already knows. **Steps and heart rate are read, never
+asked for**: `health_service_sum_today` and `health_service_peek_current_value`
+return whatever the firmware has already recorded. The call that would make the
+heart sensor run more often is `health_service_set_heart_rate_sample_period`,
+and this face never makes it — the sampling rate stays whatever the wearer chose
+in the watch's own health settings, so a heart rate here may be some minutes old
+and costs nothing at all to show.
+
+**Weather is the exception, and it is not free.** A Pebble exposes 547 calls to
+a watchface and not one of them is about the weather: the system weather app and
+its timeline pins are filled in by the phone, into storage no watchapp can read.
+So the temperature has to come over the air. `src/pkjs/index.js` fetches it
+hourly from [open-meteo.com][om], which wants no key and no account, and is
+where most weather watchfaces get theirs. It is also **the only thing this
+watchface asks of anyone but your own server**, and it is sent your coordinates
+to answer — turning the corner off in the settings stops the fetch entirely.
+
+The watch keeps the last temperature it was told and ages it out after four
+hours, so a restart is not blank but a number from yesterday never passes for
+one from now. Open-Meteo answers in [WMO present-weather codes][wmo], ninety-nine
+of them, which the phone flattens to the eight the watch can draw: clear by day,
+clear by night, partly cloudy, cloudy, rain, snow, thunder, fog. Every grade of
+drizzle, freezing rain and shower lands on the one raincloud, because at fifteen
+pixels light rain and heavy rain are the same picture.
+
+Weather needs coordinates, so it needs either *Use the phone's location* on or
+something typed into the latitude and longitude boxes. A server drawing its own
+place keeps that place to itself, and there is nothing for Open-Meteo to go on.
+
+[om]: https://open-meteo.com/
+[wmo]: https://open-meteo.com/en/docs#weather_variable_documentation
+
+The icons are not resources. A walking figure at this size is a dozen lines of
+arithmetic, and a PNG of it is seven more files to keep in step across seven
+platforms.
+
+> Note for anyone editing `messageKeys` in `package.json`: waf does not always
+> notice, and a stale `build/include/message_keys.auto.h` means the phone and the
+> watch disagree about which number means what. Run `pebble clean` after.
+
 ## Why it is built this way
 
 **The radio is the battery, not the processor.** Placing a hundred-odd objects is
@@ -99,7 +153,7 @@ rather than waiting on the phone.
 | `src/c/projection.c` | where a point of sky lands on the screen |
 | `src/c/sky_data.c` | reading the payload, and refusing a bad one |
 | `src/c/main.c` | the watch face itself |
-| `src/pkjs/index.js` | the phone's half: fetch, split, send |
+| `src/pkjs/index.js` | the phone's half: fetch, split, send, and the weather |
 | `src/pkjs/config.js` | the settings page, as plain HTML |
 
 The settings page is written by hand rather than with [Clay][clay], which is the
