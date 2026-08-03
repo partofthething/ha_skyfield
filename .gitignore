@@ -20,3 +20,4 @@ dist/
 node_modules/
 pebble/build/
 .lock-waf_*
+*.zip
