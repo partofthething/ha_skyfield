@@ -17,12 +17,20 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define SKY_FORMAT_VERSION 1
+#define SKY_FORMAT_VERSION 2
 
-#define SKY_HEADER_SIZE 17
+#define SKY_HEADER_SIZE 19
 #define SKY_BODY_SIZE 5
 #define SKY_STAR_SIZE 4
 #define SKY_LINE_SIZE 4
+#define SKY_PATH_HEADER_SIZE 1
+#define SKY_PATH_POINT_SIZE 4
+
+/* the Sun's daily curves: today's, and the two solstices */
+#define SKY_MAX_PATHS 3
+#define SKY_PATH_TODAY 0
+#define SKY_PATH_WINTER 1
+#define SKY_PATH_SUMMER 2
 
 /*
  * How much sky to keep room for. The usual set of constellations comes to about
@@ -57,6 +65,18 @@ typedef struct {
   uint16_t to;
 } SkyLine;
 
+/*
+ * A point on one of the Sun's daily curves.
+ *
+ * Already azimuth and altitude rather than sky coordinates: a day's track does
+ * not turn with the hour, so unlike a star this needs no rotating, only
+ * projecting.
+ */
+typedef struct {
+  uint16_t azimuth;
+  int16_t altitude;
+} SkyPathPoint;
+
 /* A payload, and the way into the things packed inside it. */
 typedef struct {
   uint8_t bytes[SKY_MAX_PAYLOAD];
@@ -69,6 +89,8 @@ typedef struct {
   uint8_t body_count;
   uint16_t star_count;
   uint16_t line_count;
+  uint8_t path_count;
+  uint8_t path_points;
 } SkyData;
 
 /*
@@ -83,6 +105,10 @@ bool sky_data_parse(SkyData *sky);
 SkyBody sky_data_body(const SkyData *sky, uint16_t index);
 SkyStar sky_data_star(const SkyData *sky, uint16_t index);
 SkyLine sky_data_line(const SkyData *sky, uint16_t index);
+
+/* Which of the Sun's curves this is: one of the SKY_PATH_ values above. */
+uint8_t sky_data_path_kind(const SkyData *sky, uint8_t path);
+SkyPathPoint sky_data_path_point(const SkyData *sky, uint8_t path, uint8_t point);
 
 /* What each body is called and how big to draw it, by its index. */
 typedef struct {

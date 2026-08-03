@@ -26,14 +26,27 @@ from .bodies import BODIES
 
 # bumped if the layout below changes, so an old watch app can say so rather than
 # drawing nonsense
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 MAGIC = b"SKY" + bytes([FORMAT_VERSION])
 
 # "<" throughout: little-endian, and no padding inserted between fields
-HEADER = struct.Struct("<4sIhhBHH")
+HEADER = struct.Struct("<4sIhhBHHBB")
 BODY = struct.Struct("<HhB")
 STAR = struct.Struct("<Hh")
 LINE = struct.Struct("<HH")
+PATH_HEADER = struct.Struct("<B")
+PATH_POINT = struct.Struct("<Hh")
+
+# Which of the Sun's curves a path is, so the watch can draw them differently
+# without having to be told their names.
+PATH_KINDS = {"today": 0, "winter_solstice": 1, "summer_solstice": 2}
+
+# How many points to send along each of the Sun's paths. The model works them
+# out every twenty minutes, which is seventy-three points and far more than a
+# watch can show: on a screen this size an hourly point is already closer
+# together than the line is thick, and three paths at seventy-three points would
+# be most of an AppMessage on their own.
+PATH_POINTS = 25
 
 # Angles are sent as the watch's own. A Pebble measures a full turn in 65536
 # steps -- ``TRIG_MAX_ANGLE`` -- and its sin_lookup and cos_lookup take angles in
@@ -78,6 +91,9 @@ def pack(model: dict, *, when: datetime.datetime | None = None) -> bytes:
     )
 
     stars, lines = _stick_figures(model.get("constellations", []))
+    paths = [
+        _path(path) for path in model.get("paths", []) if path["name"] in PATH_KINDS
+    ]
 
     header = HEADER.pack(
         MAGIC,
@@ -87,8 +103,32 @@ def pack(model: dict, *, when: datetime.datetime | None = None) -> bytes:
         len(bodies) // BODY.size,
         len(stars) // STAR.size,
         len(lines) // LINE.size,
+        len(paths),
+        PATH_POINTS,
     )
-    return header + bodies + stars + lines
+    return header + bodies + stars + lines + b"".join(paths)
+
+
+def _path(path: dict) -> bytes:
+    """
+    One of the Sun's daily curves, thinned to something a watch can draw.
+
+    These are already azimuth and altitude rather than sky coordinates -- a
+    day's track does not turn with the hour, it is where the Sun will be all day
+    -- so the watch draws them as they arrive without any trigonometry at all.
+    """
+    azimuth = _sample(path["azimuth"], PATH_POINTS)
+    altitude = _sample(path["altitude"], PATH_POINTS)
+    points = b"".join(
+        PATH_POINT.pack(_ra(a), _dec(h)) for a, h in zip(azimuth, altitude, strict=True)
+    )
+    return PATH_HEADER.pack(PATH_KINDS[path["name"]]) + points
+
+
+def _sample(values: list, count: int) -> list:
+    """Evenly spaced points along a curve, keeping both of its ends."""
+    last = len(values) - 1
+    return [values[round(index * last / (count - 1))] for index in range(count)]
 
 
 def _stick_figures(constellations: list) -> tuple[bytes, bytes]:
@@ -146,9 +186,17 @@ def unpack(payload: bytes) -> dict:
     and keeping an independent one here is what makes it possible to prove the
     two agree about where the fields are.
     """
-    magic, epoch, latitude, longitude, body_count, star_count, line_count = (
-        HEADER.unpack_from(payload)
-    )
+    (
+        magic,
+        epoch,
+        latitude,
+        longitude,
+        body_count,
+        star_count,
+        line_count,
+        path_count,
+        path_points,
+    ) = HEADER.unpack_from(payload)
     if magic[:3] != MAGIC[:3]:
         raise ValueError(f"not a sky payload: {magic!r}")
     if magic[3] != FORMAT_VERSION:
@@ -174,6 +222,18 @@ def unpack(payload: bytes) -> dict:
         lines.append(LINE.unpack_from(payload, at))
         at += LINE.size
 
+    names = {kind: name for name, kind in PATH_KINDS.items()}
+    paths = []
+    for _ in range(path_count):
+        (kind,) = PATH_HEADER.unpack_from(payload, at)
+        at += PATH_HEADER.size
+        points = []
+        for _point in range(path_points):
+            azimuth, altitude = PATH_POINT.unpack_from(payload, at)
+            at += PATH_POINT.size
+            points.append((azimuth / RA_SCALE, altitude / DEC_SCALE))
+        paths.append({"name": names.get(kind, kind), "points": points})
+
     return {
         "generated": datetime.datetime.fromtimestamp(epoch, datetime.UTC),
         "latitude": latitude / DEGREE_SCALE,
@@ -181,4 +241,5 @@ def unpack(payload: bytes) -> dict:
         "bodies": bodies,
         "stars": stars,
         "lines": lines,
+        "paths": paths,
     }

@@ -6,19 +6,48 @@ above wherever you are, with the time in the middle.
 ## Building
 
 Needs the [Pebble SDK](https://github.com/pebble-dev/rebble-tool) — the community
-one, since the original is long gone.
+one, since the original is long gone. No npm dependencies.
 
 ```console
 $ cd pebble
 $ pebble build
-$ pebble install --emulator chalk
 ```
 
-`chalk` is the round 180×180 screen, which suits a polar chart better than
-anything else Pebble made. `diorite` is a good second check: it is black and
-white, so it shows whether the chart still reads without colour.
+That builds for every platform the SDK knows about:
 
-To put it on a real watch: `pebble install --phone <address>`.
+| platform | screen | watch |
+|---|---|---|
+| `emery` | 200×228 colour | **Pebble Time 2** |
+| `flint` | 144×168 b&w | **Pebble 2 Duo** |
+| `gabbro` | 260×260 colour, round | round Core Devices watch |
+| `chalk` | 180×180 colour, round | Pebble Time Round |
+| `basalt` | 144×168 colour | Pebble Time |
+| `diorite` | 144×168 b&w | Pebble 2 |
+| `aplite` | 144×168 b&w | original Pebble |
+
+Lettering comes in two sizes, chosen from the screen's width, because type
+picked for a 144 pixel screen reads like a caption on a 260 pixel one.
+
+## Putting it on a watch
+
+Any of these; the first is the one to try if the Pebble app says it is connected
+to CloudPebble.
+
+```console
+$ pebble install --cloudpebble          # via the phone's CloudPebble connection
+$ pebble install --phone 192.168.1.42   # direct, same wifi, developer connection on
+$ pebble install --emulator emery       # no watch needed
+```
+
+`--cloudpebble` needs `pebble login` first, and needs the Developer Connection
+turned on in the Pebble app. `--phone` wants the address the app shows on that
+same screen, and both devices on one network.
+
+Failing all that, `build/pebble.pbw` is the app: send it to the phone however
+you like and open it with the Pebble app.
+
+`pebble logs` shows what the watch and the phone-side JavaScript are saying,
+which is where a fetch that is not happening will explain itself.
 
 ## Feeding it
 
@@ -71,7 +100,16 @@ rather than waiting on the phone.
 | `src/c/sky_data.c` | reading the payload, and refusing a bad one |
 | `src/c/main.c` | the watch face itself |
 | `src/pkjs/index.js` | the phone's half: fetch, split, send |
-| `src/pkjs/config.js` | the settings page |
+| `src/pkjs/config.js` | the settings page, as plain HTML |
+
+The settings page is written by hand rather than with [Clay][clay], which is the
+usual way to do it. Clay 1.0.4 does not build for `flint` or `gabbro`, and those
+are the watches this is mostly for. What Clay actually does is hand the phone a
+`data:text/html` URL with the whole page in it, so doing the same by hand costs
+a page of HTML, works on every platform, and leaves the project with no npm
+dependencies at all.
+
+[clay]: https://github.com/pebble/clay
 
 `projection.c` and `sky_data.c` compile on a desktop as well as a watch — that is
 what `SKY_HOST` in `sky_trig.h` is for — and the Python test suite compiles both

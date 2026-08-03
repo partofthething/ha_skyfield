@@ -32,5 +32,12 @@ int main(void) {
     SkyLine line = sky_data_line(&sky, index);
     printf("line %u %u\n", line.from, line.to);
   }
+  for (uint8_t path = 0; path < sky.path_count; path++) {
+    uint8_t kind = sky_data_path_kind(&sky, path);
+    for (uint8_t point = 0; point < sky.path_points; point++) {
+      SkyPathPoint where = sky_data_path_point(&sky, path, point);
+      printf("path %u %u %u %d\n", path, kind, where.azimuth, where.altitude);
+    }
+  }
   return 0;
 }

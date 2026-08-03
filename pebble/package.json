@@ -2,17 +2,29 @@
   "name": "skyfield",
   "author": "Nick Touran",
   "version": "3.0.0",
-  "keywords": ["pebble-app", "astronomy"],
+  "keywords": [
+    "pebble-app",
+    "astronomy"
+  ],
   "private": true,
-  "dependencies": {
-    "pebble-clay": "^1.0.4"
-  },
   "pebble": {
     "displayName": "Skyfield",
     "uuid": "6f4a1b28-9c3d-4e7a-8b15-2d9f0c6e3a74",
     "sdkVersion": "3",
     "enableMultiJS": true,
-    "targetPlatforms": ["aplite", "basalt", "chalk", "diorite"],
+    "capabilities": [
+      "configurable",
+      "location"
+    ],
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite",
+      "emery",
+      "flint",
+      "gabbro"
+    ],
     "watchapp": {
       "watchface": true
     },
@@ -20,15 +32,7 @@
       "PAYLOAD": 0,
       "NORTH_UP": 1,
       "HORIZONTAL_FLIP": 2,
-      "SHOW_STARS": 3,
-      "serverUrl": 10,
-      "token": 11,
-      "latitude": 12,
-      "longitude": 13,
-      "showStars": 14,
-      "northUp": 15,
-      "horizontalFlip": 16,
-      "constellations": 17
+      "SHOW_STARS": 3
     },
     "resources": {
       "media": []

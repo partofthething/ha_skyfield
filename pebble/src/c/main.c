@@ -25,15 +25,18 @@
  * that are already lit. */
 #define POINTS_PER_LINE 4
 
-/*
- * Room around the chart for the compass letters, which go outside the horizon
- * as they do on the full-size chart. Enough that a letter's box still clears a
- * round screen's edge at the four points where it is nearest.
- */
-#define MARGIN 16
-
-/* how far outside the horizon the letters sit, in degrees of altitude */
+/* how far outside the horizon the compass letters sit, in degrees of altitude */
 #define COMPASS_OFFSET (-7)
+
+/*
+ * A screen this wide or wider gets the larger lettering.
+ *
+ * Pebble made screens from 144 to 260 pixels across, and type chosen to suit
+ * the smallest is lost on the largest: on a Pebble Time 2 the time came out
+ * looking like a caption. There are only two sizes here because there are only
+ * really two sizes of Pebble.
+ */
+#define WIDE_SCREEN 180
 
 /* persist_write_data will not take more than this at once */
 #define PERSIST_CHUNK 256
@@ -52,6 +55,14 @@ enum {
   SETTING_HORIZONTAL_FLIP = 2,
   SETTING_SHOW_STARS = 3,
 };
+
+/* worked out once from whatever screen this turns out to be on */
+static GFont s_compass_font;
+static GFont s_time_font;
+static GFont s_date_font;
+static int16_t s_compass_box;
+static int16_t s_date_height;
+static GSize s_time_box;
 
 static Window *s_window;
 static Layer *s_chart;
@@ -224,19 +235,98 @@ static SkyPoint place(uint16_t ra, int16_t dec, const SkyObserver *observer,
 static void draw_grid(GContext *ctx) {
   GPoint centre = GPoint(s_layout.centre_x, s_layout.centre_y);
 
-  graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite));
-  graphics_context_set_stroke_width(ctx, 1);
-  /* a ring every thirty degrees, rather than the ten of the full-size chart:
-     any more and they close up into a grey disc at this size */
-  for (int32_t altitude = 30; altitude < 90; altitude += 30) {
-    int32_t radius =
-        sky_radius_for(altitude * SKY_QUARTER_TURN / 90, s_layout.horizon_radius);
-    graphics_draw_circle(ctx, centre, radius);
-  }
-
+  /*
+   * No rings of equal altitude here, unlike the full-size chart. There is only
+   * so much room, and the Sun's paths say more about the season than a ring at
+   * thirty degrees says about anything.
+   */
   graphics_context_set_stroke_color(ctx, GColorWhite);
   graphics_context_set_stroke_width(ctx, 2);
   graphics_draw_circle(ctx, centre, s_layout.horizon_radius);
+}
+
+static void draw_arc_segment(GContext *ctx, SkyPathPoint from, SkyPathPoint to);
+
+/*
+ * The Sun's daily curves: where it went at the solstices, and where it goes
+ * today.
+ *
+ * These arrive as azimuth and altitude, so they need no rotating -- a day's
+ * track is where the Sun will be all day, not where it is now. A segment with
+ * an end below the horizon is cut short at it rather than dropped, so the curve
+ * meets the rim where the Sun rises and sets instead of stopping short.
+ */
+static void draw_sun_paths(GContext *ctx) {
+  for (uint8_t path = 0; path < s_sky.path_count; path++) {
+    uint8_t kind = sky_data_path_kind(&s_sky, path);
+
+    GColor colour = GColorWhite;
+#ifdef PBL_COLOR
+    if (kind == SKY_PATH_WINTER) {
+      colour = GColorPictonBlue;
+    } else if (kind == SKY_PATH_SUMMER) {
+      colour = GColorScreaminGreen;
+    } else {
+      /* the Sun's own colour, so today's track is not mistaken for the horizon,
+         which is the other white circle of about that size */
+      colour = GColorYellow;
+    }
+#endif
+    graphics_context_set_stroke_color(ctx, colour);
+    graphics_context_set_stroke_width(ctx, kind == SKY_PATH_TODAY ? 2 : 1);
+
+    SkyPathPoint previous = sky_data_path_point(&s_sky, path, 0);
+    for (uint8_t point = 1; point < s_sky.path_points; point++) {
+      SkyPathPoint next = sky_data_path_point(&s_sky, path, point);
+
+      /* on a screen with no colours, the solstices are dotted instead */
+      bool skip = PBL_IF_COLOR_ELSE(false, kind != SKY_PATH_TODAY && (point & 1));
+      if (!skip) {
+        draw_arc_segment(ctx, previous, next);
+      }
+      previous = next;
+    }
+  }
+}
+
+/* One piece of a daily curve, cut off where it dips below the horizon. */
+static void draw_arc_segment(GContext *ctx, SkyPathPoint from,
+                             SkyPathPoint to) {
+  int32_t first = from.altitude;
+  int32_t second = to.altitude;
+  if (first < 0 && second < 0) {
+    return;
+  }
+
+  SkyAltAz start = {.azimuth = from.azimuth, .altitude = first};
+  SkyAltAz end = {.azimuth = to.azimuth, .altitude = second};
+
+  /* where one end has set, walk it up the segment to the horizon */
+  if (first < 0 || second < 0) {
+    int32_t span = second - first;
+    if (span != 0) {
+      int32_t along = (-first * TRIG_MAX_ANGLE) / span; /* fraction, in 1/65536 */
+      int32_t sweep = (int32_t)to.azimuth - (int32_t)from.azimuth;
+      if (sweep > TRIG_MAX_ANGLE / 2) {
+        sweep -= TRIG_MAX_ANGLE;
+      } else if (sweep < -TRIG_MAX_ANGLE / 2) {
+        sweep += TRIG_MAX_ANGLE;
+      }
+      SkyAltAz crossing = {
+          .azimuth = from.azimuth + (sweep * along) / TRIG_MAX_ANGLE,
+          .altitude = 0,
+      };
+      if (first < 0) {
+        start = crossing;
+      } else {
+        end = crossing;
+      }
+    }
+  }
+
+  SkyPoint a = sky_project(start, &s_layout);
+  SkyPoint b = sky_project(end, &s_layout);
+  graphics_draw_line(ctx, GPoint(a.x, a.y), GPoint(b.x, b.y));
 }
 
 static void draw_compass(GContext *ctx) {
@@ -249,11 +339,12 @@ static void draw_compass(GContext *ctx) {
         .altitude = COMPASS_OFFSET * SKY_QUARTER_TURN / 90,
     };
     SkyPoint point = sky_project(at, &s_layout);
-    GRect box = GRect(point.x - 8, point.y - 9, 16, 16);
-    graphics_draw_text(ctx, NAMES[quarter],
-                       fonts_get_system_font(FONT_KEY_GOTHIC_14),
-                       box, GTextOverflowModeTrailingEllipsis,
-                       GTextAlignmentCenter, NULL);
+    GRect box = GRect(point.x - s_compass_box / 2,
+                      point.y - s_compass_box / 2 - 1, s_compass_box,
+                      s_compass_box);
+    graphics_draw_text(ctx, NAMES[quarter], s_compass_font, box,
+                       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
+                       NULL);
   }
 }
 
@@ -333,18 +424,37 @@ static void draw_bodies(GContext *ctx, const SkyObserver *observer) {
 
 static void draw_time(GContext *ctx) {
   static char clock[8];
+  static char date[16];
   time_t now = time(NULL);
-  strftime(clock, sizeof(clock), clock_is_24h_style() ? "%H:%M" : "%I:%M",
-           localtime(&now));
+  struct tm *local = localtime(&now);
+  strftime(clock, sizeof(clock), clock_is_24h_style() ? "%H:%M" : "%I:%M", local);
+  strftime(date, sizeof(date), "%a %e %b", local);
 
-  /* in the middle, which is the zenith, and the emptiest part of most skies */
-  GRect box = GRect(s_layout.centre_x - 40, s_layout.centre_y - 21, 80, 34);
+  /*
+   * Below the middle rather than on it. The middle is the zenith, and the Sun
+   * spends the day across the top of the chart in the northern hemisphere, so
+   * the time sat there was in the way of the one line most worth seeing.
+   */
+  int16_t top = s_layout.centre_y - s_time_box.h / 2 + s_time_box.h / 2;
+  GRect box = GRect(s_layout.centre_x - s_time_box.w / 2, top, s_time_box.w,
+                    s_time_box.h);
+  GRect under = GRect(box.origin.x, box.origin.y + s_time_box.h - 2,
+                      s_time_box.w, s_date_height);
+
+  /* a patch of night behind them, so the stars do not read through the numbers */
   graphics_context_set_fill_color(ctx, GColorBlack);
-  graphics_fill_rect(ctx, GRect(box.origin.x + 12, box.origin.y + 4, 56, 26), 4,
-                     GCornersAll);
+  graphics_fill_rect(ctx, grect_inset(box, GEdgeInsets(3, 6)), 4, GCornersAll);
+  graphics_fill_rect(ctx, grect_inset(under, GEdgeInsets(1, 6)), 4, GCornersAll);
+
   graphics_context_set_text_color(ctx, GColorWhite);
-  graphics_draw_text(ctx, clock, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD),
-                     box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
+  graphics_draw_text(ctx, clock, s_time_font, box,
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
+                     NULL);
+
+  graphics_context_set_text_color(ctx,
+                                  PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
+  graphics_draw_text(ctx, date, s_date_font, under,
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
                      NULL);
 }
 
@@ -371,6 +481,7 @@ static void draw_chart(Layer *layer, GContext *ctx) {
       sky_observer_at((int32_t)time(NULL), s_sky.latitude, s_sky.longitude);
 
   draw_grid(ctx);
+  draw_sun_paths(ctx);
   if (s_show_stars) {
     draw_stars(ctx, &observer);
   }
@@ -398,10 +509,27 @@ static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(root);
 
+  /*
+   * Everything is measured off the screen rather than fixed, because these run
+   * from 144 to 260 pixels across and lettering picked for one looks wrong on
+   * the other. The margin is whatever the compass letters need, since they are
+   * the only thing drawn outside the horizon.
+   */
+  bool wide = bounds.size.w >= WIDE_SCREEN;
+  s_compass_font = fonts_get_system_font(wide ? FONT_KEY_GOTHIC_24_BOLD
+                                              : FONT_KEY_GOTHIC_14);
+  s_time_font = fonts_get_system_font(wide ? FONT_KEY_BITHAM_42_BOLD
+                                           : FONT_KEY_GOTHIC_28_BOLD);
+  s_date_font = fonts_get_system_font(wide ? FONT_KEY_GOTHIC_18
+                                           : FONT_KEY_GOTHIC_14);
+  s_compass_box = wide ? 26 : 16;
+  s_date_height = wide ? 22 : 17;
+  s_time_box = wide ? GSize(120, 48) : GSize(80, 34);
+
   int16_t across = bounds.size.w < bounds.size.h ? bounds.size.w : bounds.size.h;
   s_layout.centre_x = bounds.size.w / 2;
   s_layout.centre_y = bounds.size.h / 2;
-  s_layout.horizon_radius = across / 2 - MARGIN;
+  s_layout.horizon_radius = across / 2 - s_compass_box / 2 - 3;
 
   s_chart = layer_create(bounds);
   layer_set_update_proc(s_chart, draw_chart);

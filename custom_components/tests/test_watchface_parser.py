@@ -191,8 +191,54 @@ class TestTheWatchReadsWhatPythonWrites(unittest.TestCase):
 
     def test_a_join_pointing_at_no_star_is_refused(self):
         """A stick figure drawn from a wild index joins two arbitrary points."""
+        ours = pebble.unpack(self.payload)
+        # the joins are no longer at the end of the payload; the paths are
+        at = (
+            pebble.HEADER.size
+            + len(ours["bodies"]) * pebble.BODY.size
+            + len(ours["stars"]) * pebble.STAR.size
+            + (len(ours["lines"]) - 1) * pebble.LINE.size
+        )
         lying = bytearray(self.payload)
-        lying[-4:-2] = (9999).to_bytes(2, "little")
+        lying[at : at + 2] = (9999).to_bytes(2, "little")
+        self.assertEqual(self._parse(bytes(lying))[0], "rejected")
+
+    def test_the_suns_paths_read_the_same(self):
+        """
+        The curves the chart is really for.
+
+        These arrive as azimuth and altitude rather than sky coordinates, so the
+        watch draws them without rotating anything -- which also means a mistake
+        here shows up as a line in the wrong place rather than as nothing.
+        """
+        ours = pebble.unpack(self.payload)
+        theirs = [
+            [int(field) for field in line.split()[1:]]
+            for line in self.read
+            if line.startswith("path ")
+        ]
+        expected = []
+        for index, path in enumerate(ours["paths"]):
+            for azimuth, altitude in path["points"]:
+                expected.append(
+                    [
+                        index,
+                        pebble.PATH_KINDS[path["name"]],
+                        pebble._ra(azimuth),
+                        pebble._dec(altitude),
+                    ]
+                )
+        self.assertEqual(theirs, expected)
+
+    def test_there_is_a_path_for_each_of_the_suns_curves(self):
+        kinds = sorted(
+            {int(line.split()[2]) for line in self.read if line.startswith("path ")}
+        )
+        self.assertEqual(kinds, sorted(pebble.PATH_KINDS.values()))
+
+    def test_a_payload_claiming_more_paths_than_it_carries_is_refused(self):
+        lying = bytearray(self.payload)
+        lying[17] = pebble.PATH_KINDS.__len__() + 1  # the path count
         self.assertEqual(self._parse(bytes(lying))[0], "rejected")
 
     def test_the_wrong_version_is_refused(self):

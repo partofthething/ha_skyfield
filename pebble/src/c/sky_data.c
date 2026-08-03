@@ -43,6 +43,8 @@ bool sky_data_parse(SkyData *sky) {
   sky->body_count = sky->bytes[12];
   sky->star_count = read_u16(&sky->bytes[13]);
   sky->line_count = read_u16(&sky->bytes[15]);
+  sky->path_count = sky->bytes[17];
+  sky->path_points = sky->bytes[18];
 
   /*
    * The counts have to account for exactly what arrived. A payload that ends
@@ -52,11 +54,14 @@ bool sky_data_parse(SkyData *sky) {
   uint32_t expected = (uint32_t)SKY_HEADER_SIZE +
                       (uint32_t)sky->body_count * SKY_BODY_SIZE +
                       (uint32_t)sky->star_count * SKY_STAR_SIZE +
-                      (uint32_t)sky->line_count * SKY_LINE_SIZE;
+                      (uint32_t)sky->line_count * SKY_LINE_SIZE +
+                      (uint32_t)sky->path_count *
+                          (SKY_PATH_HEADER_SIZE +
+                           (uint32_t)sky->path_points * SKY_PATH_POINT_SIZE);
   if (expected != sky->length) {
     return false;
   }
-  if (sky->body_count > SKY_BODY_COUNT) {
+  if (sky->body_count > SKY_BODY_COUNT || sky->path_count > SKY_MAX_PATHS) {
     return false;
   }
 
@@ -97,4 +102,25 @@ SkyLine sky_data_line(const SkyData *sky, uint16_t index) {
                                   index * SKY_LINE_SIZE];
   SkyLine line = {.from = read_u16(at), .to = read_u16(at + 2)};
   return line;
+}
+
+/* Where a path begins: past everything else, then past the paths before it. */
+static const uint8_t *path_at(const SkyData *sky, uint8_t path) {
+  return &sky->bytes[SKY_HEADER_SIZE + sky->body_count * SKY_BODY_SIZE +
+                     sky->star_count * SKY_STAR_SIZE +
+                     sky->line_count * SKY_LINE_SIZE +
+                     path * (SKY_PATH_HEADER_SIZE +
+                             sky->path_points * SKY_PATH_POINT_SIZE)];
+}
+
+uint8_t sky_data_path_kind(const SkyData *sky, uint8_t path) {
+  return path_at(sky, path)[0];
+}
+
+SkyPathPoint sky_data_path_point(const SkyData *sky, uint8_t path,
+                                 uint8_t point) {
+  const uint8_t *at =
+      path_at(sky, path) + SKY_PATH_HEADER_SIZE + point * SKY_PATH_POINT_SIZE;
+  SkyPathPoint where = {.azimuth = read_u16(at), .altitude = read_i16(at + 2)};
+  return where;
 }

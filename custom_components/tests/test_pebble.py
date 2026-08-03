@@ -37,7 +37,7 @@ class TestPacking(unittest.TestCase):
 
     def test_the_length_is_exactly_what_the_header_promises(self):
         """A short read on the watch is a fault, not a smaller chart."""
-        _magic, _epoch, _lat, _lon, bodies_, stars, lines = pebble.HEADER.unpack_from(
+        (*_observer, bodies_, stars, lines, paths, points) = pebble.HEADER.unpack_from(
             self.payload
         )
         self.assertEqual(
@@ -45,12 +45,15 @@ class TestPacking(unittest.TestCase):
             pebble.HEADER.size
             + bodies_ * pebble.BODY.size
             + stars * pebble.STAR.size
-            + lines * pebble.LINE.size,
+            + lines * pebble.LINE.size
+            + paths * (pebble.PATH_HEADER.size + points * pebble.PATH_POINT.size),
         )
 
     def test_the_header_has_no_padding_in_it(self):
         """The C reads these by offset, so no compiler's padding may creep in."""
-        self.assertEqual(pebble.HEADER.size, 4 + 4 + 2 + 2 + 1 + 2 + 2)
+        self.assertEqual(pebble.HEADER.size, 4 + 4 + 2 + 2 + 1 + 2 + 2 + 1 + 1)
+        self.assertEqual(pebble.PATH_HEADER.size, 1)
+        self.assertEqual(pebble.PATH_POINT.size, 2 + 2)
         self.assertEqual(pebble.BODY.size, 2 + 2 + 1)
         self.assertEqual(pebble.STAR.size, 2 + 2)
         self.assertEqual(pebble.LINE.size, 2 + 2)
@@ -59,7 +62,14 @@ class TestPacking(unittest.TestCase):
         self.assertTrue(
             all(
                 fmt.format.startswith("<")
-                for fmt in (pebble.HEADER, pebble.BODY, pebble.STAR, pebble.LINE)
+                for fmt in (
+                    pebble.HEADER,
+                    pebble.BODY,
+                    pebble.STAR,
+                    pebble.LINE,
+                    pebble.PATH_HEADER,
+                    pebble.PATH_POINT,
+                )
             )
         )
 
@@ -128,6 +138,45 @@ class TestPacking(unittest.TestCase):
             tuple(index + offset for index in second["lines"][0]),
         )
 
+    def test_the_suns_paths_survive(self):
+        """
+        The three daily curves, thinned down but still the same shape.
+
+        These are what the chart is really about -- where the Sun goes today
+        against where it went at the solstices -- and unlike everything else
+        here they are azimuth and altitude, so they need no turning.
+        """
+        self.assertEqual(
+            [path["name"] for path in self.read["paths"]],
+            [path["name"] for path in self.model["paths"]],
+        )
+        for path in self.read["paths"]:
+            with self.subTest(path=path["name"]):
+                self.assertEqual(len(path["points"]), pebble.PATH_POINTS)
+
+    def test_a_thinned_path_keeps_both_of_its_ends(self):
+        """A curve cut short at either end would not meet the horizon."""
+        for sent, got in zip(self.model["paths"], self.read["paths"], strict=True):
+            with self.subTest(path=sent["name"]):
+                first, last = got["points"][0][0], got["points"][-1][0]
+                self.assertAlmostEqual(first, sent["azimuth"][0], delta=0.02)
+                self.assertAlmostEqual(last, sent["azimuth"][-1], delta=0.02)
+
+    def test_a_thinned_path_keeps_the_shape_that_matters(self):
+        """
+        Highest point within a degree of the real one.
+
+        Twenty-five points across a day is hourly, and the Sun does not do
+        anything in an hour that a watch could show.
+        """
+        for sent, got in zip(self.model["paths"], self.read["paths"], strict=True):
+            with self.subTest(path=sent["name"]):
+                self.assertAlmostEqual(
+                    max(altitude for _azimuth, altitude in got["points"]),
+                    max(sent["altitude"]),
+                    delta=1.0,
+                )
+
     def test_a_bad_version_is_refused_rather_than_drawn(self):
         wrong = bytes([*self.payload[:3], pebble.FORMAT_VERSION + 1]) + self.payload[4:]
         with self.assertRaises(ValueError):
@@ -147,9 +196,21 @@ class TestSize(unittest.TestCase):
         self.assertLess(len(pebble.pack(sky.sky_model())), APP_MESSAGE_BUDGET)
 
     def test_a_few_constellations_are_far_smaller(self):
-        sky = bodies.Sky(SEATTLE, PACIFIC, constellation_list=["Orion", "UrsaMajor"])
-        sky.load()
-        self.assertLess(len(pebble.pack(sky.sky_model())), 512)
+        """
+        Trimming them is the one setting that really shortens the download.
+
+        Compared against the whole sky rather than a fixed size, because the
+        Sun's paths cost the same either way and are most of what is left.
+        """
+        whole = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
+        whole.load()
+        few = bodies.Sky(SEATTLE, PACIFIC, constellation_list=["Orion", "UrsaMajor"])
+        few.load()
+
+        self.assertLess(
+            len(pebble.pack(few.sky_model())),
+            len(pebble.pack(whole.sky_model())) / 2,
+        )
 
 
 class TestChunking(unittest.TestCase):
