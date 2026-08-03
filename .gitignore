@@ -18,3 +18,5 @@ dist/
 
 # the Pebble SDK builds into pebble/build and installs into node_modules
 node_modules/
+pebble/build/
+.lock-waf_*

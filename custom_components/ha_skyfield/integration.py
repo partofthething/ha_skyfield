@@ -15,6 +15,7 @@ available as `camera: platform: ha_skyfield` and does not need any of this.
 
 import logging
 import pathlib
+from functools import partial
 
 import voluptuous as vol
 from aiohttp import web
@@ -44,6 +45,7 @@ CARD_PATH = pathlib.Path(__file__).parent / "frontend" / CARD_FILENAME
 CARD_URL = f"/{DOMAIN}/{CARD_FILENAME}"
 SKY_URL = f"/api/{DOMAIN}/sky"
 SKY_SVG_URL = f"{SKY_URL}.svg"
+SKY_PNG_URL = f"{SKY_URL}.png"
 SKY_PEBBLE_URL = f"{SKY_URL}.pebble"
 
 CONFIG_SCHEMA = vol.Schema(
@@ -84,16 +86,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.data[DOMAIN] = sky
     hass.http.register_view(SkyView(hass, sky))
     hass.http.register_view(SkySvgView(hass, sky))
+    hass.http.register_view(SkyPngView(hass, sky))
     hass.http.register_view(SkyPebbleView(hass, sky))
     await _register_card(hass)
 
     # at info, so that there is something positive to look for in the log when a
     # dashboard says the card does not exist
     _LOGGER.info(
-        "Skyfield is serving the sky at %s, drawn at %s, packed at %s, "
+        "Skyfield is serving the sky at %s, drawn at %s and %s, packed at %s, "
         "and the card at %s",
         SKY_URL,
         SKY_SVG_URL,
+        SKY_PNG_URL,
         SKY_PEBBLE_URL,
         CARD_URL,
     )
@@ -247,6 +251,42 @@ class SkySvgView(_SkyViewBase):
             await self._model(), theme=theme, title=request.query.get("title")
         )
         return web.Response(text=drawing, content_type="image/svg+xml")
+
+
+class SkyPngView(_SkyViewBase):
+    """
+    Serves the chart as a picture, for anything that will not take an SVG.
+
+    Which turns out to be a good deal of Home Assistant: the camera entity is
+    the obvious case, but anything that expects to be able to resize what it is
+    given is another.
+    """
+
+    url = SKY_PNG_URL
+    name = f"api:{DOMAIN}:sky:png"
+
+    async def get(self, request):
+        """Paint the sky as it is right now."""
+        from . import raster
+
+        theme = request.query.get("theme", "light")
+        if theme not in raster.styles.PALETTES:
+            return web.Response(status=400, text=f"no such theme: {theme}\n")
+        try:
+            width = int(request.query.get("width", raster.DEFAULT_WIDTH))
+        except ValueError:
+            return web.Response(status=400, text="width should be a whole number\n")
+
+        picture = await self._hass.async_add_executor_job(
+            partial(
+                raster.render,
+                await self._model(),
+                theme=theme,
+                width=width,
+                title=request.query.get("title"),
+            )
+        )
+        return web.Response(body=picture, content_type="image/png")
 
 
 class SkyPebbleView(_SkyViewBase):

@@ -86,8 +86,7 @@ Optional configuration under `ha_skyfield:`:
 
 ## The image version
 
-If you would rather have an image than a card, the integration also serves the
-chart ready-drawn at `/api/ha_skyfield/sky.svg`, and there is a camera entity:
+If you would rather have an image than a card, there is still a camera entity:
 
 ```yaml
 camera:
@@ -96,11 +95,23 @@ camera:
 ```
 
 Then add a picture entity to your GUI with this camera. It takes the same options
-as `ha_skyfield:` above. There is also a sensor platform, whose state is the
-Sun's altitude and which writes the chart to `www/sun.svg` for `/local/sun.svg`.
+as `ha_skyfield:` above, plus:
 
-The card is still the better option: it turns the sky in your browser without
-asking the server, and it follows your theme.
+* `image_type` `png` (default), `jpg`, or `svg`. A chart is fine lines on flat
+  colour, which is the worst thing to hand a JPEG, so `png` is the one to use.
+* `theme` `light` (default) or `dark`. A picture is painted once and cannot ask
+  who is looking at it, so unlike the card it has to be told.
+* `width` in pixels, 800 by default. The chart is drawn at that size rather than
+  drawn small and stretched.
+
+The integration also serves the chart directly at `/api/ha_skyfield/sky.png` and
+`/api/ha_skyfield/sky.svg`, both taking `?theme=` and the picture one `?width=`.
+There is a sensor platform too, whose state is the Sun's altitude and which
+writes the chart to `www/sun.png` for `/local/sun.png`.
+
+The card is still the better option where you can use it: it turns the sky in
+your browser without asking the server, follows your theme, and stays sharp at
+any size.
 
 ## Standalone
 
@@ -136,6 +147,7 @@ $ skyfield-sky serve --lat 47.608 --lon -122.335 --tz America/Los_Angeles --port
 |---|---|
 | `/` | a page showing the chart, refreshing itself |
 | `/sky.svg` | the chart |
+| `/sky.png` | the chart as a picture, for anything that will not take an SVG |
 | `/sky.json` | the sky as data, the same thing the card is sent |
 | `/sky.pebble` | the sky packed small, for the watch face |
 
@@ -144,6 +156,15 @@ Every option can be given in the query string — `?lat=51.5&lon=-0.13&tz=Europe
 anywhere. A misspelled parameter is a 400 rather than a chart quietly drawn for
 the wrong place.
 
+`skyfield-sky png` paints a picture instead, if you need one — that needs Pillow,
+which is the one thing here that is optional:
+
+```console
+$ pip install 'ha-skyfield[raster]'
+$ skyfield-sky png --lat 47.608 --lon -122.335 --tz America/Los_Angeles \
+      --width 1200 -o sky.png
+```
+
 `skyfield-sky json` and `skyfield-sky pebble` print the underlying data if you
 would rather draw it yourself. `python -m ha_skyfield` is the same command.
 
@@ -151,18 +172,20 @@ would rather draw it yourself. `python -m ha_skyfield` is the same command.
 
 **matplotlib is gone.** It was the heaviest dependency here by a wide margin, and
 Home Assistant installs everything in `requirements` on setup, so on any system
-without a prebuilt wheel it meant compiling it. The chart is now drawn as SVG in
-Python, which is the same drawing the card was already making in the browser.
+without a prebuilt wheel it meant compiling it. The chart is described once and
+then either written out as SVG or painted with Pillow, which Home Assistant
+already installs.
 
 What this changes:
 
-* The camera entity serves `image/svg+xml` instead of PNG or JPEG. Its
-  `image_type` option no longer does anything and can be removed; leaving it in
-  place logs a warning and is otherwise harmless.
-* The sensor writes `www/sun.svg`, so its picture is now `/local/sun.svg`.
-  Delete the old `www/sun.png` if you like.
-* `Sky.plot_sky()` and the `plots` module are gone. `ha_skyfield.svg.render()`
-  replaces them.
+* The camera still serves a PNG by default and `image_type` still chooses the
+  format, so nothing should need changing. It gained `svg` as an option, and
+  `theme` and `width` alongside.
+* The sensor writes `www/sun.png` as before, at a somewhat different size.
+* `Sky.plot_sky()` and the `plots` module are gone. `ha_skyfield.raster.render()`
+  and `ha_skyfield.svg.render()` replace them.
+* Charts look a little different: they are the card's drawing now, rather than
+  matplotlib's, so they follow the same layout and colours the dashboard uses.
 
 Known Issues:
 
@@ -180,8 +203,12 @@ $ cd custom_components && python -m unittest discover -s tests -t .
 
 The chart is drawn in three languages — Python for files and the server,
 JavaScript for the card, C for the watch — because each has to draw it somewhere
-the others cannot reach. They are only three views of one chart for as long as
-they agree, so the suite checks that directly rather than trusting it:
+the others cannot reach. On the Python side, `scene.py` works out where
+everything goes and `styles.py` says what it looks like; `svg.py` writes that
+out and `raster.py` paints it, so the picture and the SVG cannot drift apart.
+
+The three languages are only three views of one chart for as long as they agree,
+so the suite checks that directly rather than trusting it:
 
 * `test_projection.py` reads the card's layout constants out of the JavaScript
   and compares them to the Python's.
@@ -191,7 +218,11 @@ they agree, so the suite checks that directly rather than trusting it:
   it lands in the same pixel, to within half of one.
 * `test_watchface_parser.py` compiles the watch's payload parser and feeds it
   what `ha_skyfield.pebble` packs.
+* `test_raster.py` checks the painted chart against the scene it was painted
+  from — that a body lands on its own spot, and that nothing meant to be inside
+  the horizon escapes it.
 
-The last three skip themselves if `node` or a C compiler is missing.
+The three cross-language ones skip themselves if `node` or a C compiler is
+missing, and `test_raster.py` skips without Pillow.
 
 

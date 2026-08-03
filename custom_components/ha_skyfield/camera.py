@@ -3,11 +3,16 @@ HASS camera component for skyfield.
 
 Maybe a camera is better than a sensor for live updates.
 
-This serves the chart as SVG. It used to be a matplotlib PNG, but matplotlib is
-a heavy thing to make every installation build and install for one picture, and
-the card had already been drawing the same chart as SVG for a while. So the
-image is now rendered by :mod:`.svg`, which is the same drawing the card makes,
-and the ``image_type`` option no longer has anything to choose between.
+This serves a picture of the chart. It used to be drawn by matplotlib, which was
+a heavy thing to make every installation build for one image; it is now painted
+by :mod:`.raster` from the same description of the chart the card draws, using
+Pillow, which Home Assistant installs anyway.
+
+The picture is a raster one because a camera entity has to be. Serving the SVG
+directly and saying so in ``content_type`` looks as though it ought to work and
+does not: the dashboard will not show it, and the snapshot button hands back the
+bytes under a .jpg name whatever they are. ``image_type: svg`` is still there
+for anyone fetching from the entity themselves, but it is not the default.
 """
 
 from __future__ import annotations
@@ -35,9 +40,26 @@ CONF_CONSTELLATION_LIST = "constellations_list"
 CONF_NORTH_UP = "north_up"
 CONF_HORIZONTAL_FLIP = "horizontal_flip"
 CONF_IMAGE_TYPE = "image_type"
+CONF_THEME = "theme"
+CONF_WIDTH = "width"
 
 ICON = "mdi:sun"
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=1)
+
+CONTENT_TYPES = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "svg": "image/svg+xml",
+}
+
+# a picture is painted once and cannot ask the person looking at it what they
+# prefer, so unlike the card it has to be told
+THEMES = ("light", "dark")
+
+DEFAULT_IMAGE_TYPE = "png"
+DEFAULT_THEME = "light"
+DEFAULT_WIDTH = 800
 
 # Validation of the user's configuration
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
@@ -49,7 +71,13 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_PLANET_LIST): cv.ensure_list,
         vol.Optional(CONF_NORTH_UP): cv.boolean,
         vol.Optional(CONF_HORIZONTAL_FLIP): cv.boolean,
-        vol.Optional(CONF_IMAGE_TYPE): cv.string,
+        vol.Optional(CONF_IMAGE_TYPE, default=DEFAULT_IMAGE_TYPE): vol.In(
+            sorted(CONTENT_TYPES)
+        ),
+        vol.Optional(CONF_THEME, default=DEFAULT_THEME): vol.In(THEMES),
+        vol.Optional(CONF_WIDTH, default=DEFAULT_WIDTH): vol.All(
+            vol.Coerce(int), vol.Range(min=100, max=4000)
+        ),
     }
 )
 
@@ -66,12 +94,9 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     planet_list = config.get(CONF_PLANET_LIST)
     north_up = config.get(CONF_NORTH_UP)
     horizontal_flip = config.get(CONF_HORIZONTAL_FLIP)
-    if config.get(CONF_IMAGE_TYPE) is not None:
-        _LOGGER.warning(
-            "The %s option no longer does anything and can be removed: the chart "
-            "is drawn as SVG now, which is what let matplotlib be dropped.",
-            CONF_IMAGE_TYPE,
-        )
+    image_type = config.get(CONF_IMAGE_TYPE)
+    theme = config.get(CONF_THEME)
+    width = config.get(CONF_WIDTH)
     configdir = hass.config.config_dir
     tmpdir = "/tmp/skyfield"
     _LOGGER.debug("Setting up skyfield.")
@@ -88,6 +113,9 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         planet_list,
         north_up,
         horizontal_flip,
+        image_type,
+        theme,
+        width,
     )
 
     _LOGGER.debug("Adding skyfield cam")
@@ -96,9 +124,6 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
 class SkyFieldCam(Camera):
     """A hass-specific entity."""
-
-    # the chart is vector, so this is not the JPEG a camera is usually asked for
-    content_type = "image/svg+xml"
 
     def __init__(
         self,
@@ -114,6 +139,9 @@ class SkyFieldCam(Camera):
         planets,
         north_up,
         horizontal_flip,
+        image_type=DEFAULT_IMAGE_TYPE,
+        theme=DEFAULT_THEME,
+        width=DEFAULT_WIDTH,
     ):
         Camera.__init__(self)
         from . import bodies
@@ -132,6 +160,19 @@ class SkyFieldCam(Camera):
         self._loaded = False
         self._configdir = configdir
         self._tmpdir = tmpdir
+        self._image_type = (image_type or DEFAULT_IMAGE_TYPE).lower()
+        self._theme = theme or DEFAULT_THEME
+        self._width = width or DEFAULT_WIDTH
+
+    @property
+    def content_type(self):
+        """
+        What the picture is.
+
+        Overridden as a property rather than set as an attribute so that it wins
+        however the Camera base class happens to declare it.
+        """
+        return CONTENT_TYPES[self._image_type]
 
     @property
     def frame_interval(self):
@@ -163,8 +204,9 @@ class SkyFieldCam(Camera):
         """
         Draw the sky as it is now.
 
-        The size is ignored: an SVG has no particular size, and whatever displays
-        it will scale it to whatever room it has.
+        A requested width is honoured where it can be -- the chart is drawn from
+        scratch, so it is drawn at that size rather than resized afterwards --
+        and the height follows from it, since the chart has a shape of its own.
         """
         # don't use throttle because extra calls return Nones
         if not self._loaded:
@@ -173,6 +215,17 @@ class SkyFieldCam(Camera):
             self._loaded = True
         _LOGGER.debug("Drawing the skyfield chart")
 
-        from . import svg
+        model = self.sky.sky_model()
+        if self._image_type == "svg":
+            from . import svg
 
-        return svg.render(self.sky.sky_model()).encode()
+            return svg.render(model).encode()
+
+        from . import raster
+
+        return raster.render(
+            model,
+            width=width or self._width,
+            theme=self._theme,
+            image_format=self._image_type,
+        )

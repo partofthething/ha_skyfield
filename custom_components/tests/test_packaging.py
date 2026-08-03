@@ -45,10 +45,29 @@ class TestDependencies(unittest.TestCase):
         self.assertNotIn("matplotlib", str(PYPROJECT["project"]["dependencies"]))
 
     def test_the_two_dependency_lists_agree(self):
+        """
+        Anything Home Assistant is told to install has to be installable here.
+
+        Pillow is only needed to paint a picture, so it is an extra for pip and
+        a plain requirement for Home Assistant, whose camera entity does need it.
+        """
+        extras = PYPROJECT["project"].get("optional-dependencies", {})
+        declared = str(PYPROJECT["project"]["dependencies"]) + str(extras)
         for requirement in MANIFEST["requirements"]:
             name = requirement.split(">")[0].split("=")[0]
             with self.subTest(requirement=name):
-                self.assertIn(name, str(PYPROJECT["project"]["dependencies"]))
+                self.assertIn(name.lower(), declared.lower())
+
+    def test_drawing_an_svg_needs_nothing_extra(self):
+        """
+        The whole point of the rewrite was an install that is not heavy.
+
+        Pillow is a plain wheel and hardly a burden, but the card, the web page
+        and the watch all use the SVG, and none of them should have to install
+        an image library to get it.
+        """
+        self.assertNotIn("pillow", str(PYPROJECT["project"]["dependencies"]).lower())
+        self.assertIn("raster", PYPROJECT["project"]["optional-dependencies"])
 
     def test_nothing_needs_home_assistant_to_be_installed(self):
         """

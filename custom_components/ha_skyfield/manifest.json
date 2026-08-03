@@ -5,6 +5,6 @@
   "dependencies": ["http", "frontend"],
   "after_dependencies": ["lovelace"],
   "codeowners": ["@partofthething"],
-  "requirements": ["skyfield>=1.49", "numpy"],
+  "requirements": ["skyfield>=1.49", "numpy", "Pillow"],
   "version": "3.0"
 }

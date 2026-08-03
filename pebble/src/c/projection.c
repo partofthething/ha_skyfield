@@ -7,13 +7,16 @@
  * along its orbit. The scaling by ten thousand is what keeps the fraction
  * without a decimal point; see the same numbers in ha_skyfield/projection.py.
  */
-#define SIDEREAL_PER_DAY 657154316L
-#define SIDEREAL_AT_EPOCH 510562975L
-#define SIDEREAL_SCALE 10000L
-#define SECONDS_PER_DAY 86400L
+/* Every name here is prefixed, because pebble.h is in scope and defines a
+ * SECONDS_PER_DAY of its own -- which the desktop build, having no pebble.h,
+ * cannot warn about. */
+#define SKY_SIDEREAL_PER_DAY 657154316L
+#define SKY_SIDEREAL_AT_EPOCH 510562975L
+#define SKY_SIDEREAL_SCALE 10000L
+#define SKY_SECONDS_PER_DAY 86400L
 
 /* hundredths of a degree to TRIG_MAX_ANGLE units, times ten thousand */
-#define DEGREE_HUNDREDTHS_TO_TRIG 18204L /* 65536 / 360 / 100 * 10000 */
+#define SKY_DEGREE_HUNDREDTHS_TO_TRIG 18204L /* 65536 / 360 / 100 * 10000 */
 
 /* Multiply two Q16 fixed-point numbers. */
 static int32_t mul16(int32_t a, int32_t b) {
@@ -51,27 +54,27 @@ int32_t sky_sidereal_time(int32_t unix_seconds) {
    * bits will hold within a few years of now.
    */
   int32_t since_j2000 = unix_seconds - SKY_J2000_EPOCH;
-  int32_t days = since_j2000 / SECONDS_PER_DAY;
-  int32_t seconds = since_j2000 % SECONDS_PER_DAY;
+  int32_t days = since_j2000 / SKY_SECONDS_PER_DAY;
+  int32_t seconds = since_j2000 % SKY_SECONDS_PER_DAY;
 
   if (seconds < 0) { /* C rounds a negative division towards zero */
-    seconds += SECONDS_PER_DAY;
+    seconds += SKY_SECONDS_PER_DAY;
     days -= 1;
   }
 
-  int64_t turned = SIDEREAL_AT_EPOCH + (int64_t)days * SIDEREAL_PER_DAY +
-                   ((int64_t)seconds * SIDEREAL_PER_DAY) / SECONDS_PER_DAY;
+  int64_t turned = SKY_SIDEREAL_AT_EPOCH + (int64_t)days * SKY_SIDEREAL_PER_DAY +
+                   ((int64_t)seconds * SKY_SIDEREAL_PER_DAY) / SKY_SECONDS_PER_DAY;
 
   /* a full turn is a power of two, so this wraps with a mask */
-  return (int32_t)((turned / SIDEREAL_SCALE) & (TRIG_MAX_ANGLE - 1));
+  return (int32_t)((turned / SKY_SIDEREAL_SCALE) & (TRIG_MAX_ANGLE - 1));
 }
 
 SkyObserver sky_observer_at(int32_t unix_seconds, int16_t latitude_hundredths,
                             int16_t longitude_hundredths) {
   int32_t latitude =
-      ((int32_t)latitude_hundredths * DEGREE_HUNDREDTHS_TO_TRIG) / SIDEREAL_SCALE;
+      ((int32_t)latitude_hundredths * SKY_DEGREE_HUNDREDTHS_TO_TRIG) / SKY_SIDEREAL_SCALE;
   int32_t longitude =
-      ((int32_t)longitude_hundredths * DEGREE_HUNDREDTHS_TO_TRIG) / SIDEREAL_SCALE;
+      ((int32_t)longitude_hundredths * SKY_DEGREE_HUNDREDTHS_TO_TRIG) / SKY_SIDEREAL_SCALE;
 
   SkyObserver observer = {
       .sin_latitude = sin_lookup(latitude),

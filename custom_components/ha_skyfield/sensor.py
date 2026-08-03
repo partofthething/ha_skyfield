@@ -15,8 +15,10 @@ DOMAIN = "skyfield"
 ICON = "mdi:sun"
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=1)
 
-# written into the configuration's www/, which Home Assistant serves at /local/
-IMAGE_FILENAME = "sun.svg"
+# written into the configuration's www/, which Home Assistant serves at /local/.
+# A picture rather than an SVG, since this ends up in an entity_picture and the
+# frontend is happier with one.
+IMAGE_FILENAME = "sun.png"
 
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
@@ -73,7 +75,7 @@ class SkyField(Entity):
             self._loaded = True
         _LOGGER.debug("Drawing the skyfield chart")
 
-        from . import svg
+        from . import raster
 
         self._sun_altitude = self.sky.sun_altitude()
 
@@ -81,5 +83,5 @@ class SkyField(Entity):
         # necessarily there on a fresh installation
         www = os.path.join(self._configdir, "www")
         os.makedirs(www, exist_ok=True)
-        with open(os.path.join(www, IMAGE_FILENAME), "w") as chart:
-            chart.write(svg.render(self.sky.sky_model()))
+        with open(os.path.join(www, IMAGE_FILENAME), "wb") as chart:
+            chart.write(raster.render(self.sky.sky_model()))

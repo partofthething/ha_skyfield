@@ -17,6 +17,12 @@ classifiers = [
 ]
 dependencies = ["skyfield>=1.49", "numpy"]
 
+# Drawing the chart as a picture needs Pillow. Drawing it as an SVG -- which is
+# what the card, the web page and the watch all use -- needs nothing, so this
+# stays out of the way of an install that only wants that.
+[project.optional-dependencies]
+raster = ["pillow>=10.1"]
+
 [project.urls]
 Homepage = "https://github.com/partofthething/ha_skyfield"
 

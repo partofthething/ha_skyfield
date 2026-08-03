@@ -107,6 +107,17 @@ class TestServing(unittest.TestCase):
         self.assertEqual(headers["Content-Type"], "application/octet-stream")
         self.assertEqual(len(pebble.unpack(body)["bodies"]), 9)
 
+    def test_the_painted_chart(self):
+        status, headers, body = self.get("/sky.png")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "image/png")
+        self.assertEqual(body[:8], b"\x89PNG\r\n\x1a\n")
+
+    def test_the_painted_chart_takes_a_width(self):
+        _status, _headers, body = self.get("/sky.png?width=300")
+        # the width is in the PNG header, big-endian, just after the signature
+        self.assertEqual(int.from_bytes(body[16:20], "big"), 300)
+
     def test_a_page_to_look_at_it_on(self):
         status, headers, body = self.get("/")
         self.assertEqual(status, 200)

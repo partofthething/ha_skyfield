@@ -20,7 +20,7 @@ from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import pebble, svg
+from . import pebble, raster, svg
 from .bodies import Sky
 
 _LOGGER = logging.getLogger(__name__)
@@ -99,6 +99,7 @@ ALIASES = {
 }
 
 NUMBERS = ("latitude", "longitude")
+WHOLE_NUMBERS = ("width",)
 WORDS = ("timezone", "theme", "title")
 FLAGS = (
     "show_constellations",
@@ -122,7 +123,14 @@ def options_from_query(query: dict, defaults: dict) -> dict:
     options = dict(defaults)
     asked = {ALIASES.get(name, name): values for name, values in query.items()}
 
-    unknown = set(asked) - set(NUMBERS) - set(WORDS) - set(FLAGS) - set(LISTS)
+    unknown = (
+        set(asked)
+        - set(NUMBERS)
+        - set(WHOLE_NUMBERS)
+        - set(WORDS)
+        - set(FLAGS)
+        - set(LISTS)
+    )
     # a cache-busting parameter is the one thing that is meant to be ignored
     unknown.discard("t")
     if unknown:
@@ -135,6 +143,14 @@ def options_from_query(query: dict, defaults: dict) -> dict:
             except ValueError:
                 raise ValueError(
                     f"{name} should be a number, not {asked[name][0]!r}"
+                ) from None
+    for name in WHOLE_NUMBERS:
+        if name in asked:
+            try:
+                options[name] = int(asked[name][0])
+            except ValueError:
+                raise ValueError(
+                    f"{name} should be a whole number, not {asked[name][0]!r}"
                 ) from None
     for name in WORDS:
         if name in asked:
@@ -176,12 +192,13 @@ def default_options(latitude: float, longitude: float, timezone: str) -> dict:
         "planets": None,
         "theme": "auto",
         "title": None,
+        "width": raster.DEFAULT_WIDTH,
     }
 
 
 # options the chart is drawn with rather than computed with; they must not reach
 # the Sky, which would otherwise be set up again for every change of colour
-DRAWING_OPTIONS = ("theme", "title")
+DRAWING_OPTIONS = ("theme", "title", "width")
 
 
 class SkyHandler(BaseHTTPRequestHandler):
@@ -207,6 +224,7 @@ class SkyHandler(BaseHTTPRequestHandler):
             handler = {
                 "/": self._index,
                 "/sky.svg": self._svg,
+                "/sky.png": self._png,
                 "/sky.json": self._json,
                 "/sky.pebble": self._pebble,
             }[route.path]
@@ -230,6 +248,18 @@ class SkyHandler(BaseHTTPRequestHandler):
             self._model(options), theme=options["theme"], title=options["title"]
         )
         self._send(200, "image/svg+xml; charset=utf-8", drawing.encode())
+
+    def _png(self, options):
+        # a picture cannot ask the reader which colours they want, so `auto`
+        # settles for the light ones here
+        theme = options["theme"]
+        picture = raster.render(
+            self._model(options),
+            theme="light" if theme == "auto" else theme,
+            title=options["title"],
+            width=options["width"],
+        )
+        self._send(200, "image/png", picture)
 
     def _json(self, options):
         body = json.dumps(self._model(options)).encode()

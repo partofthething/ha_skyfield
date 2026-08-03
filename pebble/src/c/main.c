@@ -25,8 +25,15 @@
  * that are already lit. */
 #define POINTS_PER_LINE 4
 
-/* room around the chart, for the compass letters */
-#define MARGIN 10
+/*
+ * Room around the chart for the compass letters, which go outside the horizon
+ * as they do on the full-size chart. Enough that a letter's box still clears a
+ * round screen's edge at the four points where it is nearest.
+ */
+#define MARGIN 16
+
+/* how far outside the horizon the letters sit, in degrees of altitude */
+#define COMPASS_OFFSET (-7)
 
 /* persist_write_data will not take more than this at once */
 #define PERSIST_CHUNK 256
@@ -56,20 +63,26 @@ static bool s_show_stars = true;
 static uint32_t s_pieces_wanted;
 static uint32_t s_pieces_seen;
 
-static const GColor *body_colours(void) {
-  /* the same colours as everywhere else, as near as sixty-four of them get */
-  static GColor colours[SKY_BODY_COUNT];
-  colours[0] = GColorYellow;      /* Sun */
-  colours[1] = GColorMelon;       /* Mercury */
-  colours[2] = GColorRajah;       /* Venus */
-  colours[3] = GColorLightGray;   /* Moon */
-  colours[4] = GColorRed;         /* Mars */
-  colours[5] = GColorWindsorTan;  /* Jupiter */
-  colours[6] = GColorPastelYellow;/* Saturn */
-  colours[7] = GColorCeleste;     /* Uranus */
-  colours[8] = GColorBlueMoon;    /* Neptune */
-  return colours;
-}
+#ifdef PBL_COLOR
+/*
+ * The same colours as everywhere else, as near as sixty-four of them get.
+ *
+ * Only on a screen that has them. A black and white watch draws every body
+ * white and tells them apart by size, so naming colours there would be a table
+ * nothing reads.
+ */
+static const GColor BODY_COLOURS[SKY_BODY_COUNT] = {
+    {.argb = GColorYellowARGB8},       /* Sun */
+    {.argb = GColorMelonARGB8},        /* Mercury */
+    {.argb = GColorRajahARGB8},        /* Venus */
+    {.argb = GColorLightGrayARGB8},    /* Moon */
+    {.argb = GColorRedARGB8},          /* Mars */
+    {.argb = GColorWindsorTanARGB8},   /* Jupiter */
+    {.argb = GColorPastelYellowARGB8}, /* Saturn */
+    {.argb = GColorCelesteARGB8},      /* Uranus */
+    {.argb = GColorBlueMoonARGB8},     /* Neptune */
+};
+#endif
 
 /* ---------------------------------------------------------------- keeping it */
 
@@ -231,7 +244,10 @@ static void draw_compass(GContext *ctx) {
 
   graphics_context_set_text_color(ctx, GColorWhite);
   for (int quarter = 0; quarter < 4; quarter++) {
-    SkyAltAz at = {.azimuth = quarter * TRIG_MAX_ANGLE / 4, .altitude = 0};
+    SkyAltAz at = {
+        .azimuth = quarter * TRIG_MAX_ANGLE / 4,
+        .altitude = COMPASS_OFFSET * SKY_QUARTER_TURN / 90,
+    };
     SkyPoint point = sky_project(at, &s_layout);
     GRect box = GRect(point.x - 8, point.y - 9, 16, 16);
     graphics_draw_text(ctx, NAMES[quarter],
@@ -292,8 +308,6 @@ static void draw_stars(GContext *ctx, const SkyObserver *observer) {
 }
 
 static void draw_bodies(GContext *ctx, const SkyObserver *observer) {
-  const GColor *colours = body_colours();
-
   for (uint16_t index = 0; index < s_sky.body_count; index++) {
     SkyBody body = sky_data_body(&s_sky, index);
     if (body.body >= SKY_BODY_COUNT) {
@@ -307,7 +321,8 @@ static void draw_bodies(GContext *ctx, const SkyObserver *observer) {
 
     GPoint at = GPoint(point.x, point.y);
     uint8_t radius = SKY_BODIES[body.body].radius;
-    graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(colours[body.body], GColorWhite));
+    graphics_context_set_fill_color(
+        ctx, PBL_IF_COLOR_ELSE(BODY_COLOURS[body.body], GColorWhite));
     graphics_fill_circle(ctx, at, radius);
     /* a ring, so a pale planet is still visible against a lit star field */
     graphics_context_set_stroke_color(ctx, GColorBlack);

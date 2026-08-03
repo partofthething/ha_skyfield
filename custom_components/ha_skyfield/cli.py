@@ -15,7 +15,7 @@ import logging
 import sys
 import time
 
-from . import pebble, server, svg
+from . import pebble, raster, server, svg
 from .bodies import Sky
 
 _LOGGER = logging.getLogger(__name__)
@@ -101,6 +101,17 @@ def _parser() -> argparse.ArgumentParser:
         "svg", parents=[where, drawing], help="draw the sky as an SVG file"
     )
     draw.set_defaults(run=_svg)
+
+    picture = commands.add_parser(
+        "png", parents=[where, drawing], help="paint the sky as a picture"
+    )
+    picture.add_argument(
+        "--width", type=int, default=raster.DEFAULT_WIDTH, help="in pixels"
+    )
+    picture.add_argument(
+        "--format", dest="image_format", choices=("png", "jpeg"), default="png"
+    )
+    picture.set_defaults(run=_png)
 
     describe = commands.add_parser(
         "json", parents=[where], help="print the sky as data, the way the card gets it"
@@ -190,6 +201,29 @@ def _draw(sky: Sky, args) -> str:
 
 def _svg(args) -> int:
     _write(args, _draw(_sky(args), args))
+    return 0
+
+
+def _png(args) -> int:
+    """
+    Paint the sky rather than writing it out.
+
+    A picture cannot ask the reader which colours they prefer, so `auto` is not
+    one of the choices here; left alone it draws the light one.
+    """
+    theme = "light" if args.theme == "auto" else args.theme
+    _write(
+        args,
+        raster.render(
+            _sky(args).sky_model(args.when),
+            width=args.width,
+            theme=theme,
+            title=args.title,
+            background=args.background,
+            image_format=args.image_format,
+        ),
+        binary=True,
+    )
     return 0
 
 
