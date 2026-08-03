@@ -1,8 +1,20 @@
+# ephemerides and the timescale files skyfield downloads beside them
 de421.bsp
 deltat.data
 deltat.preds
 Leap_Second.dat
+
 .project
 .pydevproject
 __pycache__
 *.pyc
+
+# an installable package as well as an integration, so pip leaves things behind
+.venv/
+*.egg-info/
+build/
+dist/
+.ruff_cache/
+
+# the Pebble SDK builds into pebble/build and installs into node_modules
+node_modules/

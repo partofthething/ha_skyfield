@@ -2,11 +2,16 @@
 HASS camera component for skyfield.
 
 Maybe a camera is better than a sensor for live updates.
+
+This serves the chart as SVG. It used to be a matplotlib PNG, but matplotlib is
+a heavy thing to make every installation build and install for one picture, and
+the card had already been drawing the same chart as SVG for a while. So the
+image is now rendered by :mod:`.svg`, which is the same drawing the card makes,
+and the ``image_type`` option no longer has anything to choose between.
 """
 
 from __future__ import annotations
 
-import io
 import logging
 from datetime import timedelta
 
@@ -61,7 +66,12 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     planet_list = config.get(CONF_PLANET_LIST)
     north_up = config.get(CONF_NORTH_UP)
     horizontal_flip = config.get(CONF_HORIZONTAL_FLIP)
-    image_type = config.get(CONF_IMAGE_TYPE)
+    if config.get(CONF_IMAGE_TYPE) is not None:
+        _LOGGER.warning(
+            "The %s option no longer does anything and can be removed: the chart "
+            "is drawn as SVG now, which is what let matplotlib be dropped.",
+            CONF_IMAGE_TYPE,
+        )
     configdir = hass.config.config_dir
     tmpdir = "/tmp/skyfield"
     _LOGGER.debug("Setting up skyfield.")
@@ -78,7 +88,6 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         planet_list,
         north_up,
         horizontal_flip,
-        image_type,
     )
 
     _LOGGER.debug("Adding skyfield cam")
@@ -87,6 +96,9 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
 class SkyFieldCam(Camera):
     """A hass-specific entity."""
+
+    # the chart is vector, so this is not the JPEG a camera is usually asked for
+    content_type = "image/svg+xml"
 
     def __init__(
         self,
@@ -102,7 +114,6 @@ class SkyFieldCam(Camera):
         planets,
         north_up,
         horizontal_flip,
-        image_type,
     ):
         Camera.__init__(self)
         from . import bodies
@@ -117,7 +128,6 @@ class SkyFieldCam(Camera):
             planets,
             north_up,
             horizontal_flip,
-            image_type,
         )
         self._loaded = False
         self._configdir = configdir
@@ -150,14 +160,19 @@ class SkyFieldCam(Camera):
     def camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
-        """Load image bytes in memory"""
+        """
+        Draw the sky as it is now.
+
+        The size is ignored: an SVG has no particular size, and whatever displays
+        it will scale it to whatever room it has.
+        """
         # don't use throttle because extra calls return Nones
         if not self._loaded:
             _LOGGER.debug("Loading skyfield data")
             self.sky.load(self._tmpdir)
             self._loaded = True
-        _LOGGER.debug("Updating skyfield plot")
-        buf = io.BytesIO()
-        self.sky.plot_sky(buf)
-        buf.seek(0)
-        return buf.getvalue()
+        _LOGGER.debug("Drawing the skyfield chart")
+
+        from . import svg
+
+        return svg.render(self.sky.sky_model()).encode()

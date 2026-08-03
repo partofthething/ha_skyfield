@@ -1,6 +1,4 @@
-# The tests import the integration package, whose __init__ sets up the Home
-# Assistant side of things, so Home Assistant has to be importable.
+# The integration half needs Home Assistant; the standalone half needs none of it.
 homeassistant
 skyfield>=1.49
-matplotlib
 numpy

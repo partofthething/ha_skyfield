@@ -4,7 +4,7 @@
   "documentation": "https://github.com/partofthething/ha_skyfield",
   "dependencies": ["http", "frontend"],
   "after_dependencies": ["lovelace"],
-  "codeowners": [],
-  "requirements": ["skyfield>=1.49", "matplotlib", "numpy"],
-  "version": "2.0"
+  "codeowners": ["@partofthething"],
+  "requirements": ["skyfield>=1.49", "numpy"],
+  "version": "3.0"
 }

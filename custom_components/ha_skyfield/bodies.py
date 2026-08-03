@@ -36,21 +36,6 @@ def _rotate(rotation, xyz):
     return np.einsum("ij...,j...->i...", rotation, xyz)
 
 
-def _pyplot():
-    """
-    Get pyplot, ready to draw to a file.
-
-    The non-interactive backend keeps multiple instances on different threads
-    from interacting.
-    """
-    import matplotlib
-
-    matplotlib.use("agg")
-    import matplotlib.pyplot
-
-    return matplotlib.pyplot
-
-
 class Sky:  # pylint: disable=too-many-instance-attributes
     """The Sky and its bodies."""
 
@@ -65,7 +50,6 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         planet_list=None,
         north_up=False,
         horizontal_flip=False,
-        image_type="png",
     ):
         lat, long = latlong
         self._lat, self._long = lat, long
@@ -77,7 +61,6 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         self._winter_solstice = None
         self._summer_solstice = None
         self._today_sunpath = None
-        self.sun_position = None
         self._constellations = []
         self._points = []
         self._show_constellations = show_constellations
@@ -85,7 +68,6 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         self._show_legend = show_legend
         self._north_up = north_up
         self._horizontal_flip = horizontal_flip
-        self._image_type = image_type
 
         if constellation_list is None:
             self._constellation_names = constellations.DEFAULT_CONSTELLATIONS
@@ -142,26 +124,15 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             self._planets[SUN],
             self._midnight(datetime.date(this_year, 12, 21)),
             self,
-            fmt="--",
-            color="blue",
-            linewidth=1,
-            alpha=0.8,
+            dashed=True,
         )
         self._summer_solstice = BodyPath(
             "summer_solstice",
             self._planets[SUN],
             self._midnight(datetime.date(this_year, 6, 21)),
             self,
-            fmt="--",
-            color="green",
-            linewidth=1,
-            alpha=0.8,
+            dashed=True,
         )
-
-    @property
-    def get_image_type(self):
-        """Return the image type attribute."""
-        return self._image_type
 
     def _midnight(self, date):
         """The start of a given day where the observer is standing."""
@@ -293,96 +264,6 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             ],
         }
 
-    def plot_sky(self, output=None, when=None):
-        """
-        Make a figure with the sky and various planets/sun/moon.
-
-        This is a r, theta plot where r goes from 0 to 90 from the center
-        and theta goes all the way around radially.
-
-        r represents the altitude
-        theta is the azimuth.
-
-        Matplotlib takes these in (theta, r) coordinate pairs so it's (azimuth, altitude) for us.
-
-        Matplotlib is only imported here, rather than alongside the rest, so that
-        installations using the card instead of the image never pay to load it.
-        """
-        plt = _pyplot()
-
-        when = self.local_time(when)
-
-        visible = [np.linspace(0, 2 * np.pi, 200), [90.0 for _i in range(200)]]
-
-        # pylint: disable=invalid-name
-        fig, ax = plt.subplots(
-            1, 1, figsize=(6, 6.2), subplot_kw={"projection": "polar"}
-        )
-        ax.set_axisbelow(True)
-        ax.set_theta_direction(1 if self._horizontal_flip else -1)
-        ax.plot(*visible, "-", color="k", linewidth=3, alpha=1.0)  # border
-
-        self._draw_objects(ax, when)
-
-        if self._show_time:
-            ax.annotate(
-                # naming the zone, since the machine's is often not this one
-                when.strftime("%Y-%m-%d %H:%M:%S %Z"),
-                xy=(0.09, 0.07),
-                xycoords="figure fraction",
-                horizontalalignment="left",
-                verticalalignment="top",
-                fontsize=8,
-            )
-
-        if self._show_legend:
-            fig.legend(
-                loc="lower right",
-                bbox_transform=fig.transFigure,
-                ncol=3,
-                markerscale=0.6,
-                columnspacing=1,
-                mode=None,
-                handletextpad=0.05,
-            )
-
-        ax.set_theta_zero_location("N" if self._north_up else "S", offset=0)
-        ax.set_rmax(90)
-        ax.set_rgrids(
-            np.linspace(0, 90, 10), [f"{int(f)}˚" for f in np.linspace(90, 0, 10)]
-        )
-        ax.set_thetagrids(
-            np.linspace(0, 360.0, 9), ["N", "NE", "E", "SE", "S", "SW", "W", "NW", "N"]
-        )
-        fig.tight_layout()
-
-        if output is None:
-            plt.show()
-        else:
-            # filename string or file-like object/buffer
-            fig.savefig(output, format=self._image_type)
-        plt.close()
-
-    def _draw_objects(self, ax, when):
-        """Add all celestial bodies to the plots"""
-        obs_time = self.to_time(when)
-        observer = self.observer_at(obs_time)
-
-        for sunpath in [
-            self._winter_solstice,
-            self._summer_solstice,
-            self._sunpath_for(when.date()),
-        ]:
-            sunpath.draw(ax)
-
-        for point in self._points:
-            position = point.draw(ax, observer)
-            if point.label == SUN_LABEL:
-                self.sun_position = position
-
-        for constellation in self._constellations:
-            constellation.draw(ax, obs_time)
-
     def _sunpath_for(self, date):
         """
         Get the Sun's path across the sky on a given date.
@@ -397,27 +278,34 @@ class Sky:  # pylint: disable=too-many-instance-attributes
                 # start at midnight to hide discontinuities
                 self._midnight(date),
                 self,
-                "-",
-                color="k",
-                linewidth=1,
-                alpha=0.8,
+                dashed=False,
             )
         return self._today_sunpath
+
+    def sun_altitude(self, when=None):
+        """
+        How high the Sun is above the horizon, in degrees.
+
+        Negative once it has set. This is the one number the sensor entity wants
+        out of the whole sky, and it is cheap enough to work out on its own that
+        it is not worth drawing a chart to find it.
+        """
+        _azimuth, zenith_angle = self.compute_position(
+            self._planets[SUN], self.local_time(when)
+        )
+        return float(90 - zenith_angle)
 
 
 class BodyPath:
     """A line that some Body will travel on on some given day"""
 
-    def __init__(self, name, body, day, sky, fmt, color, linewidth=1, alpha=0.8):
+    def __init__(self, name, body, day, sky, dashed=False):
         self.name = name
         self._body = body
         self._day = day
         self._sky = sky
         self.path = None
-        self.fmt = fmt
-        self.color = color
-        self.linewidth = linewidth
-        self.alpha = alpha
+        self.dashed = dashed
 
         self._compute_daily_path()
 
@@ -441,20 +329,10 @@ class BodyPath:
         azi, alt = self.path
         return {
             "name": self.name,
-            "dashed": self.fmt == "--",
+            "dashed": self.dashed,
             "azimuth": np.round(np.degrees(azi), DEGREE_PLACES).tolist(),
             "altitude": np.round(90 - alt, DEGREE_PLACES).tolist(),
         }
-
-    def draw(self, ax):
-        """Draw this path on a matplotlib axis"""
-        ax.plot(
-            *self.path,
-            self.fmt,
-            color=self.color,
-            linewidth=self.linewidth,
-            alpha=self.alpha,
-        )
 
 
 class Point:
@@ -467,26 +345,13 @@ class Point:
         self._body = body
         self._sky = sky
 
-    def draw(self, ax, observer):
-        """Draw this body as seen by an observer, and report where it is."""
-        azi, alt = self._sky.observe(observer, self._body)
-        ax.scatter(
-            azi,
-            alt,
-            s=self.size,
-            label=self.label,
-            alpha=1.0,
-            color=self.color,
-            edgecolor="black",
-        )
-        return azi, alt
-
     def describe(self, observer):
         """
         Describe where this body is, as data.
 
-        The colours are named rather than numeric so that they mean the same
-        thing to matplotlib and to a browser, which both know them.
+        The colours are CSS colour names, which is what both the card and the
+        rendered SVG want, and which say which planet you are looking at rather
+        than merely being pretty.
         """
         ra, dec = self._sky.to_radec(observer.observe(self._body).xyz.au, observer.t)
         return {

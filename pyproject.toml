@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ha-skyfield"
+version = "3.0"
+description = "Polar charts of the Sun, Moon, planets and constellations, as SVG"
+readme = "README.md"
+license = { file = "LICENSE.txt" }
+requires-python = ">=3.11"
+authors = [{ name = "Nick Touran" }]
+keywords = ["astronomy", "skyfield", "svg", "home-assistant", "pebble"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+dependencies = ["skyfield>=1.49", "numpy"]
+
+[project.urls]
+Homepage = "https://github.com/partofthething/ha_skyfield"
+
+[project.scripts]
+skyfield-sky = "ha_skyfield.cli:main"
+
+# The Home Assistant integration is the package. HACS copies
+# custom_components/ha_skyfield/ into a configuration directory as it stands, so
+# rather than keep a second copy of the code for people who are not running Home
+# Assistant, setuptools is pointed at the same directory. `pip install .` and
+# HACS then install the very same files.
+[tool.setuptools]
+package-dir = { "" = "custom_components" }
+
+[tool.setuptools.packages.find]
+where = ["custom_components"]
+include = ["ha_skyfield*"]
+
+[tool.setuptools.package-data]
+ha_skyfield = ["*.dat", "frontend/*.js"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "DTZ", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# the tests are partly about what naive datetimes are taken to mean, so they
+# have to be able to make them
+"custom_components/tests/*" = ["DTZ001"]

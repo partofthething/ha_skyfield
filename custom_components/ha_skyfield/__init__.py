@@ -1,199 +1,28 @@
 """
-Live sky charts for Home Assistant.
+Polar charts of the Sun, Moon, planets and constellations.
 
-Setting up this integration serves two things to the frontend: the sky itself,
-as data, and a Lovelace card that knows how to draw it. The card is registered
-automatically, so all that is needed in a dashboard is:
+This package wears two hats. It is a Home Assistant custom integration, which is
+what the directory it lives in is for, and it is also an ordinary Python package
+that will draw the same chart as an SVG file for a web page, serve it over HTTP,
+or pack it up small enough to send to a watch. The same files do both, so that
+there is one drawing to keep right rather than two.
 
-    type: custom:skyfield-card
-
-The older matplotlib camera is still available as `camera: platform: ha_skyfield`
-and does not need any of this.
+The Home Assistant half needs Home Assistant, and the standalone half must not.
+So the integration proper lives in ``integration.py`` and is only pulled in when
+there is a Home Assistant to pull it in for; ``python -m ha_skyfield`` and
+``import ha_skyfield.svg`` work on a machine that has never heard of it.
 """
 
-import logging
-import pathlib
+from importlib.util import find_spec
 
-import voluptuous as vol
-from homeassistant.components import frontend
-from homeassistant.components.http import HomeAssistantView, StaticPathConfig
-from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.typing import ConfigType
-from homeassistant.loader import async_get_integration
-
-_LOGGER = logging.getLogger(__name__)
-
-DOMAIN = "ha_skyfield"
-
-CONF_SHOW_TIME = "show_time"
-CONF_SHOW_LEGEND = "show_legend"
-CONF_SHOW_CONSTELLATIONS = "show_constellations"
-CONF_PLANET_LIST = "planet_list"
-CONF_CONSTELLATION_LIST = "constellations_list"
-CONF_NORTH_UP = "north_up"
-CONF_HORIZONTAL_FLIP = "horizontal_flip"
-
-CARD_FILENAME = "skyfield-card.js"
-CARD_PATH = pathlib.Path(__file__).parent / "frontend" / CARD_FILENAME
-CARD_URL = f"/{DOMAIN}/{CARD_FILENAME}"
-SKY_URL = f"/api/{DOMAIN}/sky"
-
-CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: vol.Schema(
-            {
-                vol.Optional(CONF_LATITUDE): cv.latitude,
-                vol.Optional(CONF_LONGITUDE): cv.longitude,
-                vol.Optional(CONF_SHOW_CONSTELLATIONS, default=True): cv.boolean,
-                vol.Optional(CONF_SHOW_TIME, default=True): cv.boolean,
-                vol.Optional(CONF_SHOW_LEGEND, default=True): cv.boolean,
-                vol.Optional(CONF_CONSTELLATION_LIST): cv.ensure_list,
-                vol.Optional(CONF_PLANET_LIST): cv.ensure_list,
-                vol.Optional(CONF_NORTH_UP, default=False): cv.boolean,
-                vol.Optional(CONF_HORIZONTAL_FLIP, default=False): cv.boolean,
-            }
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
-)
-
-
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the sky data endpoint and register the card that draws it."""
-    conf = config.get(DOMAIN)
-    if conf is None:
-        # Nothing addressed to us by name, so something else pulled us in: the
-        # camera or sensor platform, most likely. Serve the card anyway, on
-        # default settings, rather than leave somebody who adds it to a dashboard
-        # staring at "no such card exists" with nothing to say why.
-        conf = CONFIG_SCHEMA({DOMAIN: {}})[DOMAIN]
-
-    sky = _build_sky(hass, conf)
-    # loading pulls in an ephemeris, downloading it the first time, so it cannot
-    # happen on the event loop
-    await hass.async_add_executor_job(sky.load, hass.config.path(DOMAIN))
-
-    hass.data[DOMAIN] = sky
-    hass.http.register_view(SkyView(hass, sky))
-    await _register_card(hass)
-
-    # at info, so that there is something positive to look for in the log when a
-    # dashboard says the card does not exist
-    _LOGGER.info(
-        "Skyfield is serving the sky at %s and the card at %s", SKY_URL, CARD_URL
+# Home Assistant reads ``async_setup`` and ``CONFIG_SCHEMA`` off this module by
+# name, so they have to be visible here even though they are defined next door.
+# Asking whether Home Assistant is installed, rather than importing and catching
+# the failure, keeps a genuine mistake inside integration.py loud instead of
+# quietly turning the integration off.
+if find_spec("homeassistant") is not None:  # pragma: no cover - needs a HA install
+    from .integration import (  # noqa: F401
+        CONFIG_SCHEMA,
+        DOMAIN,
+        async_setup,
     )
-    return True
-
-
-def _build_sky(hass: HomeAssistant, conf: ConfigType):
-    """Build the Sky described by the configuration."""
-    from .bodies import Sky
-
-    return Sky(
-        (
-            conf.get(CONF_LATITUDE, hass.config.latitude),
-            conf.get(CONF_LONGITUDE, hass.config.longitude),
-        ),
-        str(hass.config.time_zone),
-        show_constellations=conf[CONF_SHOW_CONSTELLATIONS],
-        show_time=conf[CONF_SHOW_TIME],
-        show_legend=conf[CONF_SHOW_LEGEND],
-        constellation_list=conf.get(CONF_CONSTELLATION_LIST),
-        planet_list=conf.get(CONF_PLANET_LIST),
-        north_up=conf[CONF_NORTH_UP],
-        horizontal_flip=conf[CONF_HORIZONTAL_FLIP],
-    )
-
-
-async def _register_card(hass: HomeAssistant) -> None:
-    """
-    Serve the card and get the frontend to load it.
-
-    The version is tacked on to the URL so that upgrading actually fetches the
-    new card rather than whatever the browser cached last time.
-    """
-    # Home Assistant will happily register a route to a file that is not there
-    # and then answer 404 when the browser asks for it, which shows up in a
-    # dashboard as the card not existing and says nothing about why. So check.
-    if not await hass.async_add_executor_job(CARD_PATH.is_file):
-        _LOGGER.error(
-            "Cannot serve the Lovelace card: %s is missing. The frontend "
-            "directory has to be installed next to the Python files, so check "
-            "that whatever copied this integration into place brought it along. "
-            "The camera platform works without it.",
-            CARD_PATH,
-        )
-        return
-
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(CARD_URL, str(CARD_PATH), True)]
-    )
-
-    integration = await async_get_integration(hass, DOMAIN)
-    url = f"{CARD_URL}?v={integration.version}"
-
-    if await _add_dashboard_resource(hass, url):
-        return
-
-    # Dashboards written in YAML keep their own resource list, which cannot be
-    # added to from here, so fall back to loading the card on every frontend page.
-    frontend.add_extra_js_url(hass, url)
-    _LOGGER.warning(
-        "Your dashboard resources are managed in YAML, so the card could not be "
-        "registered automatically. It is being loaded as an extra module instead, "
-        "which occasionally loses a race with the dashboard and is then reported "
-        "as 'Custom element doesn't exist: skyfield-card'. To make it reliable, "
-        "add this to your lovelace resources: {url: %s, type: module}",
-        url,
-    )
-
-
-async def _add_dashboard_resource(hass: HomeAssistant, url: str) -> bool:
-    """
-    Put the card in the dashboard's resource list. Says whether that worked.
-
-    This is worth the trouble because a dashboard waits for its resources before
-    it draws any cards, which it does not do for an extra module URL: a card
-    loaded that way can lose the race and be reported as not existing at all,
-    however well the file itself is being served.
-    """
-    lovelace = hass.data.get(LOVELACE_DOMAIN)
-    if lovelace is None or lovelace.resource_mode != "storage":
-        return False
-
-    resources = lovelace.resources
-    if not resources.loaded:
-        await resources.async_load()
-        resources.loaded = True
-
-    for resource in resources.async_items():
-        if resource["url"].partition("?")[0] != CARD_URL:
-            continue
-        if resource["url"] != url:
-            # a different version of the same card: point the entry that is
-            # already there at the new one rather than leaving both behind
-            await resources.async_update_item(resource["id"], {"url": url})
-        return True
-
-    await resources.async_create_item({"res_type": "module", "url": url})
-    return True
-
-
-class SkyView(HomeAssistantView):
-    """Serves where everything in the sky is, for the card to draw."""
-
-    url = SKY_URL
-    name = f"api:{DOMAIN}:sky"
-    requires_auth = True
-
-    def __init__(self, hass: HomeAssistant, sky) -> None:
-        self._hass = hass
-        self._sky = sky
-
-    async def get(self, request):
-        """Describe the sky as it is right now."""
-        model = await self._hass.async_add_executor_job(self._sky.sky_model)
-        return self.json(model)

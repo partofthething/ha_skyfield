@@ -15,6 +15,9 @@ DOMAIN = "skyfield"
 ICON = "mdi:sun"
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=1)
 
+# written into the configuration's www/, which Home Assistant serves at /local/
+IMAGE_FILENAME = "sun.svg"
+
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
     """Set up the skyfield platform."""
@@ -41,6 +44,7 @@ class SkyField(Entity):
         self._loaded = False
         self._configdir = configdir
         self._tmpdir = tmpdir
+        self._sun_altitude = None
 
     @property
     def name(self):
@@ -52,22 +56,30 @@ class SkyField(Entity):
 
     @property
     def state(self):
-        """Return the device state attributes."""
-        return 90 - list(self.sky.sun_position)[1]
+        """How high the Sun is above the horizon, in degrees."""
+        return self._sun_altitude
 
     @property
     def entity_picture(self):
-        """Return the camera image still."""
-        return f"/local/sun.{self.sky.get_image_type}"
+        """Where the chart written by :meth:`update` can be fetched from."""
+        return f"/local/{IMAGE_FILENAME}"
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
-        """Update sensor data."""
+        """Work out where the Sun is, and redraw the chart beside it."""
         if not self._loaded:
             _LOGGER.debug("Loading skyfield data")
             self.sky.load(self._tmpdir)
             self._loaded = True
-        _LOGGER.debug("Updating skyfield plot")
-        self.sky.plot_sky(
-            os.path.join(self._configdir, "www", f"sun.{self.sky.get_image_type}")
-        )
+        _LOGGER.debug("Drawing the skyfield chart")
+
+        from . import svg
+
+        self._sun_altitude = self.sky.sun_altitude()
+
+        # www/ is what Home Assistant serves at /local/, and it is not
+        # necessarily there on a fresh installation
+        www = os.path.join(self._configdir, "www")
+        os.makedirs(www, exist_ok=True)
+        with open(os.path.join(www, IMAGE_FILENAME), "w") as chart:
+            chart.write(svg.render(self.sky.sky_model()))

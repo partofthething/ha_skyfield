@@ -6,7 +6,7 @@ import time
 import unittest
 from zoneinfo import ZoneInfo
 
-from ha_skyfield import bodies
+from ha_skyfield import bodies, projection
 
 SEATTLE = (47.608, -122.335)
 PACIFIC = "America/Los_Angeles"
@@ -19,12 +19,14 @@ def zoneless(*when):
     Several tests below are about what such a moment is taken to mean, so these
     are deliberately naive rather than an oversight.
     """
-    return datetime.datetime(*when)  # noqa: DTZ001
+    return datetime.datetime(*when)
 
 
 class TestSky(unittest.TestCase):
     def test_sky(self):
-        sky = bodies.Sky((50.0, 50.0), "US/Pacific", constellation_list="CanisMajor")
+        # a real zone name rather than the "US/Pacific" style, which is a legacy
+        # alias that modern tzdata packages leave out
+        sky = bodies.Sky((50.0, 50.0), PACIFIC, constellation_list="CanisMajor")
         sky.load()
         self.assertGreater(len(sky._constellations), 0)
 
@@ -76,16 +78,20 @@ class TestSkyModel(unittest.TestCase):
                 self.assertLess(start, len(stars))
                 self.assertLess(end, len(stars))
 
-    def test_agrees_with_the_positions_used_for_plotting(self):
+    def test_agrees_with_the_positions_skyfield_computes(self):
         """
         The model gives sky coordinates for a client to turn for itself.
 
-        Turning them the way the card does should land where the plotting code
-        puts the same body, which is what keeps the card and the image agreeing.
+        Turning them the way :mod:`ha_skyfield.projection` does -- which is the
+        way the card does, checked in ``test_svg_matches_card`` -- should land
+        where skyfield says the body actually is. That is what makes the shortcut
+        the card and the renderer both take an honest one, rather than merely a
+        consistent one.
         """
-        obs_time = self.sky.to_time(self.when)
-        observer = self.sky.observer_at(obs_time)
-        sidereal = _greenwich_sidereal_time(obs_time.ut1) + self.model["longitude"]
+        observer = self.sky.observer_at(self.sky.to_time(self.when))
+        turned = projection.observer_at(
+            self.model["latitude"], self.model["longitude"], self.when
+        )
 
         for described in self.model["bodies"]:
             body = next(
@@ -94,14 +100,29 @@ class TestSkyModel(unittest.TestCase):
             azimuth, zenith_angle = self.sky.observe(observer, body._body)
             expected = (math.degrees(azimuth), 90 - zenith_angle)
 
-            got = _alt_az(
-                described["ra"], described["dec"], sidereal, self.model["latitude"]
-            )
+            got = projection.alt_az(described["ra"], described["dec"], turned)
             self.assertLess(
                 _separation(expected, got),
                 0.005,
                 f"{described['label']} is in the wrong place",
             )
+
+    def test_constellations_are_where_skyfield_puts_them_too(self):
+        """The same check, for the stars, which arrive by a different route."""
+        obs_time = self.sky.to_time(self.when)
+        turned = projection.observer_at(
+            self.model["latitude"], self.model["longitude"], self.when
+        )
+
+        for constellation, drawn in zip(
+            self.sky._constellations, self.model["constellations"], strict=True
+        ):
+            azimuths, zeniths = self.sky.to_altaz(constellation._star_xyz, obs_time)
+            for index, (ra, dec) in enumerate(drawn["stars"]):
+                with self.subTest(constellation=drawn["name"], star=index):
+                    expected = (math.degrees(azimuths[index]), 90 - zeniths[index])
+                    got = projection.alt_az(ra, dec, turned)
+                    self.assertLess(_separation(expected, got), 0.005)
 
 
 class TestTimeZones(unittest.TestCase):
@@ -143,13 +164,13 @@ class TestTimeZones(unittest.TestCase):
         )
 
     def test_a_moment_with_a_zone_is_moved_into_the_configured_one(self):
-        elsewhere = datetime.datetime(2026, 8, 3, 5, 30, tzinfo=datetime.timezone.utc)
+        elsewhere = datetime.datetime(2026, 8, 3, 5, 30, tzinfo=datetime.UTC)
         self.assertEqual(
             self.sky.local_time(elsewhere).isoformat(), "2026-08-02T22:30:00-07:00"
         )
 
     def test_one_moment_written_three_ways_draws_one_sky(self):
-        in_utc = datetime.datetime(2026, 8, 3, 5, 30, tzinfo=datetime.timezone.utc)
+        in_utc = datetime.datetime(2026, 8, 3, 5, 30, tzinfo=datetime.UTC)
         ways = [
             zoneless(2026, 8, 2, 22, 30),
             in_utc,
@@ -181,9 +202,7 @@ class TestTimeZones(unittest.TestCase):
         for zone in self.MACHINE_ZONES:
             with self.subTest(machine_zone=zone):
                 self._pretend_the_machine_is_in(zone)
-                elapsed = self.sky.local_time() - datetime.datetime.now(
-                    datetime.timezone.utc
-                )
+                elapsed = self.sky.local_time() - datetime.datetime.now(datetime.UTC)
                 self.assertLess(abs(elapsed.total_seconds()), 5)
 
     def test_a_fixed_moment_reads_the_same_whatever_the_machine_says(self):
@@ -194,34 +213,6 @@ class TestTimeZones(unittest.TestCase):
                 self._pretend_the_machine_is_in(zone)
                 drawn.add(json.dumps(self.sky.sky_model(fixed), sort_keys=True))
         self.assertEqual(len(drawn), 1)
-
-
-def _greenwich_sidereal_time(julian_date):
-    """The same formula the card uses, to check the card's approach here."""
-    days = julian_date - 2451545.0
-    centuries = days / 36525
-    return (
-        280.46061837
-        + 360.98564736629 * days
-        + 0.000387933 * centuries**2
-        - centuries**3 / 38710000
-    ) % 360
-
-
-def _alt_az(ra, dec, sidereal_time, latitude):
-    """Hour angle trigonometry, as the card does it."""
-    hour_angle = math.radians(sidereal_time - ra)
-    dec, lat = math.radians(dec), math.radians(latitude)
-    altitude = math.asin(
-        math.sin(dec) * math.sin(lat)
-        + math.cos(dec) * math.cos(lat) * math.cos(hour_angle)
-    )
-    azimuth = math.atan2(
-        -math.cos(dec) * math.sin(hour_angle),
-        math.sin(dec) * math.cos(lat)
-        - math.cos(dec) * math.sin(lat) * math.cos(hour_angle),
-    )
-    return math.degrees(azimuth) % 360, math.degrees(altitude)
 
 
 def _separation(first, second):
