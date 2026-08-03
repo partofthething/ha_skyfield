@@ -197,7 +197,7 @@ def default_options(latitude: float, longitude: float, timezone: str) -> dict:
 
 
 # options the chart is drawn with rather than computed with; they must not reach
-# the Sky, which would otherwise be set up again for every change of colour
+# the Sky, which would otherwise be set up again for every change of color
 DRAWING_OPTIONS = ("theme", "title", "width")
 
 
@@ -250,7 +250,7 @@ class SkyHandler(BaseHTTPRequestHandler):
         self._send(200, "image/svg+xml; charset=utf-8", drawing.encode())
 
     def _png(self, options):
-        # a picture cannot ask the reader which colours they want, so `auto`
+        # a picture cannot ask the reader which colors they want, so `auto`
         # settles for the light ones here
         theme = options["theme"]
         picture = raster.render(

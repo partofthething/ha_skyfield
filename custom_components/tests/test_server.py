@@ -177,9 +177,9 @@ class TestCache(unittest.TestCase):
         cache.model({**options, "north_up": True})
         self.assertEqual(cache.built, 2)
 
-    def test_the_colours_never_reach_the_sky(self):
+    def test_the_colors_never_reach_the_sky(self):
         """
-        Changing a colour must not rebuild an ephemeris.
+        Changing a color must not rebuild an ephemeris.
 
         The handler strips them before asking, so this is really a check that the
         list it strips still names all of them.

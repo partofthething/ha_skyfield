@@ -60,7 +60,7 @@ def render(
     it something else turns the sky to that moment without recomputing anything,
     since the model holds sky coordinates rather than points on the chart.
 
-    ``theme`` picks a set of colours, ``auto`` meaning the reader's own
+    ``theme`` picks a set of colors, ``auto`` meaning the reader's own
     preference where that can be asked for. ``palette`` replaces any of them by
     name -- see :data:`styles.PALETTES` for the names.
     """
@@ -157,7 +157,7 @@ def _shape(item, css: str = "") -> str:
         if item.label is None:
             return f"{circle}/>"
         # a title is what a screen reader says and what a pointer hovering over
-        # it shows, so a body is not identified by its colour alone
+        # it shows, so a body is not identified by its color alone
         return f"{circle}><title>{escape(item.label)}</title></circle>"
     if isinstance(item, scene.Line):
         return (
@@ -182,23 +182,23 @@ def _background(background: str | None, drawing) -> str:
 
 
 def stylesheet(theme: str, overrides: dict | None = None) -> str:
-    """The whole stylesheet for a theme, colours and all."""
+    """The whole stylesheet for a theme, colors and all."""
     if theme == "auto":
         # a browser follows the reader's preference; anything that does not
         # understand the media query is left with the light set, which is the
         # right answer for a rasteriser writing onto white
         return (
             _structure()
-            + _colours(styles.palette("light", overrides))
+            + _colors(styles.palette("light", overrides))
             + "@media (prefers-color-scheme: dark) {"
-            + _colours(styles.palette("dark", overrides))
+            + _colors(styles.palette("dark", overrides))
             + "}"
         )
-    return _structure() + _colours(styles.palette(theme, overrides))
+    return _structure() + _colors(styles.palette(theme, overrides))
 
 
 def _structure() -> str:
-    """Everything that is not a colour, said once."""
+    """Everything that is not a color, said once."""
     dashes = " ".join(str(step) for step in styles.DASHES)
     rules = [
         ".grid circle, .grid line, .horizon, .sun-path,"
@@ -225,9 +225,9 @@ def _structure() -> str:
     return "".join(rules)
 
 
-def _colours(palette: dict) -> str:
+def _colors(palette: dict) -> str:
     """
-    The colour half, for one set of colours.
+    The color half, for one set of colors.
 
     Emitted whole for each theme rather than as a handful of overrides, because
     a rule inside a media query only beats one outside it when the two selectors

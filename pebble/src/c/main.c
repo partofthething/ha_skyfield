@@ -76,13 +76,13 @@ static uint32_t s_pieces_seen;
 
 #ifdef PBL_COLOR
 /*
- * The same colours as everywhere else, as near as sixty-four of them get.
+ * The same colors as everywhere else, as near as sixty-four of them get.
  *
  * Only on a screen that has them. A black and white watch draws every body
- * white and tells them apart by size, so naming colours there would be a table
+ * white and tells them apart by size, so naming colors there would be a table
  * nothing reads.
  */
-static const GColor BODY_COLOURS[SKY_BODY_COUNT] = {
+static const GColor BODY_COLORS[SKY_BODY_COUNT] = {
     {.argb = GColorYellowARGB8},       /* Sun */
     {.argb = GColorMelonARGB8},        /* Mercury */
     {.argb = GColorRajahARGB8},        /* Venus */
@@ -260,26 +260,26 @@ static void draw_sun_paths(GContext *ctx) {
   for (uint8_t path = 0; path < s_sky.path_count; path++) {
     uint8_t kind = sky_data_path_kind(&s_sky, path);
 
-    GColor colour = GColorWhite;
+    GColor color = GColorWhite;
 #ifdef PBL_COLOR
     if (kind == SKY_PATH_WINTER) {
-      colour = GColorPictonBlue;
+      color = GColorPictonBlue;
     } else if (kind == SKY_PATH_SUMMER) {
-      colour = GColorScreaminGreen;
+      color = GColorScreaminGreen;
     } else {
-      /* the Sun's own colour, so today's track is not mistaken for the horizon,
+      /* the Sun's own color, so today's track is not mistaken for the horizon,
          which is the other white circle of about that size */
-      colour = GColorYellow;
+      color = GColorYellow;
     }
 #endif
-    graphics_context_set_stroke_color(ctx, colour);
+    graphics_context_set_stroke_color(ctx, color);
     graphics_context_set_stroke_width(ctx, kind == SKY_PATH_TODAY ? 2 : 1);
 
     SkyPathPoint previous = sky_data_path_point(&s_sky, path, 0);
     for (uint8_t point = 1; point < s_sky.path_points; point++) {
       SkyPathPoint next = sky_data_path_point(&s_sky, path, point);
 
-      /* on a screen with no colours, the solstices are dotted instead */
+      /* on a screen with no colors, the solstices are dotted instead */
       bool skip = PBL_IF_COLOR_ELSE(false, kind != SKY_PATH_TODAY && (point & 1));
       if (!skip) {
         draw_arc_segment(ctx, previous, next);
@@ -413,7 +413,7 @@ static void draw_bodies(GContext *ctx, const SkyObserver *observer) {
     GPoint at = GPoint(point.x, point.y);
     uint8_t radius = SKY_BODIES[body.body].radius;
     graphics_context_set_fill_color(
-        ctx, PBL_IF_COLOR_ELSE(BODY_COLOURS[body.body], GColorWhite));
+        ctx, PBL_IF_COLOR_ELSE(BODY_COLORS[body.body], GColorWhite));
     graphics_fill_circle(ctx, at, radius);
     /* a ring, so a pale planet is still visible against a lit star field */
     graphics_context_set_stroke_color(ctx, GColorBlack);

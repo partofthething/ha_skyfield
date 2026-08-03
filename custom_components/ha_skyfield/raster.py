@@ -92,7 +92,7 @@ def render(
             f"{tuple(styles.PALETTES)}, not {theme!r}"
         )
 
-    colours = styles.palette(theme, palette)
+    colors = styles.palette(theme, palette)
     drawing = scene.build(
         model,
         when=when,
@@ -106,9 +106,9 @@ def render(
 
     picture = _paint(
         drawing,
-        colours,
+        colors,
         scale=width / drawing.width * supersample,
-        background=background if background is not None else colours["paper"],
+        background=background if background is not None else colors["paper"],
     )
     height = round(width * drawing.height / drawing.width)
     picture = picture.resize((width, height), _resample())
@@ -120,7 +120,7 @@ def _resample():
     return _pillow().Image.LANCZOS
 
 
-def _paint(drawing, colours: dict, scale: float, background: str):
+def _paint(drawing, colors: dict, scale: float, background: str):
     PIL = _pillow()
     Image, ImageChops, ImageDraw = PIL.Image, PIL.ImageChops, PIL.ImageDraw
 
@@ -128,7 +128,7 @@ def _paint(drawing, colours: dict, scale: float, background: str):
         max(1, round(drawing.width * scale)),
         max(1, round(drawing.height * scale)),
     )
-    base = Image.new("RGBA", size, _colour(background))
+    base = Image.new("RGBA", size, _color(background))
 
     # everything inside the horizon is drawn together and cut to it once, the
     # same way the SVG puts one clip path around the lot
@@ -140,16 +140,16 @@ def _paint(drawing, colours: dict, scale: float, background: str):
     )
 
     for group in drawing.chart:
-        _group(clipped if group.clipped else base, group, colours, scale, drawing.top)
+        _group(clipped if group.clipped else base, group, colors, scale, drawing.top)
     for group in drawing.page:
-        _group(base, group, colours, scale, 0)
+        _group(base, group, colors, scale, 0)
 
     clipped.putalpha(ImageChops.multiply(clipped.getchannel("A"), mask))
     base.alpha_composite(clipped)
     return base
 
 
-def _group(target, group, colours: dict, scale: float, offset: float):
+def _group(target, group, colors: dict, scale: float, offset: float):
     """
     Paint one group, faded as a whole if it is meant to be.
 
@@ -163,60 +163,60 @@ def _group(target, group, colours: dict, scale: float, offset: float):
     style = STYLES[group.style]
     if style.opacity < 1:
         layer = Image.new("RGBA", target.size, (0, 0, 0, 0))
-        _items(layer, group, colours, scale, offset)
+        _items(layer, group, colors, scale, offset)
         alpha = layer.getchannel("A").point(lambda value: round(value * style.opacity))
         layer.putalpha(alpha)
         target.alpha_composite(layer)
     else:
-        _items(target, group, colours, scale, offset)
+        _items(target, group, colors, scale, offset)
 
 
-def _items(target, group, colours: dict, scale: float, offset: float):
+def _items(target, group, colors: dict, scale: float, offset: float):
     draw = _pillow().ImageDraw.Draw(target)
     for item in group.items:
         style = STYLES[getattr(item, "style", None) or group.style]
         if isinstance(item, scene.Circle):
-            _circle(draw, item, style, colours, scale, offset)
+            _circle(draw, item, style, colors, scale, offset)
         elif isinstance(item, scene.Line):
             draw.line(
                 _points([(item.x1, item.y1), (item.x2, item.y2)], scale, offset),
-                fill=_colour(colours[style.stroke]),
+                fill=_color(colors[style.stroke]),
                 width=_width(style.width, scale),
             )
         elif isinstance(item, scene.Polyline):
-            _polyline(draw, item, group, style, colours, scale, offset)
+            _polyline(draw, item, group, style, colors, scale, offset)
         elif isinstance(item, scene.Dot):
             # a zero-length line with a round cap is a dot, so the width the SVG
             # strokes it with is a diameter here
             radius = style.width / 2
             draw.ellipse(
                 _box(item.x, item.y + offset, radius, scale),
-                fill=_colour(colours[style.stroke]),
+                fill=_color(colors[style.stroke]),
             )
         elif isinstance(item, scene.Label):
             draw.text(
                 ((item.x) * scale, (item.y + offset) * scale),
                 item.text,
                 font=_font(style.font_size * scale),
-                fill=_colour(colours[style.fill]),
+                fill=_color(colors[style.fill]),
                 anchor="lm" if style.anchor == "start" else "mm",
             )
         else:
             raise TypeError(f"nothing here knows how to paint {item!r}")
 
 
-def _circle(draw, item, style, colours: dict, scale: float, offset: float):
+def _circle(draw, item, style, colors: dict, scale: float, offset: float):
     box = _box(item.x, item.y + offset, item.radius, scale)
-    outline = _colour(colours[style.stroke]) if style.stroke else None
+    outline = _color(colors[style.stroke]) if style.stroke else None
     draw.ellipse(
         box,
-        fill=_colour(item.fill) if item.fill else None,
+        fill=_color(item.fill) if item.fill else None,
         outline=outline,
         width=_width(style.width, scale),
     )
 
 
-def _polyline(draw, item, group, style, colours: dict, scale: float, offset: float):
+def _polyline(draw, item, group, style, colors: dict, scale: float, offset: float):
     runs = (
         _dashed(item.points, styles.DASHES)
         if getattr(group, "dashed", False)
@@ -227,7 +227,7 @@ def _polyline(draw, item, group, style, colours: dict, scale: float, offset: flo
             continue
         draw.line(
             _points(run, scale, offset),
-            fill=_colour(colours[style.stroke]),
+            fill=_color(colors[style.stroke]),
             width=_width(style.width, scale),
             joint="curve",
         )
@@ -292,7 +292,7 @@ def _width(width: float, scale: float) -> int:
     return max(1, round(width * scale))
 
 
-def _colour(value: str):
+def _color(value: str):
     return _pillow().ImageColor.getrgb(value)
 
 
@@ -306,7 +306,7 @@ def _font(size: float):
 def _encode(picture, image_format: str) -> bytes:
     image_format = image_format.lower()
     if image_format in ("jpg", "jpeg"):
-        # a chart is fine lines on flat colour, which is the worst thing to hand
+        # a chart is fine lines on flat color, which is the worst thing to hand
         # a discrete cosine transform, so this exists only for somebody who has
         # asked for it by name
         picture = picture.convert("RGB")

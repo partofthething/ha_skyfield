@@ -2,11 +2,11 @@
 What each part of the chart looks like.
 
 One table, read by both people who draw it: :mod:`.svg` turns it into a
-stylesheet and :mod:`.raster` into pen colours and widths. Keeping it here rather
+stylesheet and :mod:`.raster` into pen colors and widths. Keeping it here rather
 than writing it out twice is what stops a chart drawn as a picture from slowly
 diverging from the same chart drawn as an SVG.
 
-Colours are named rather than given, and looked up in a palette, so that a
+Colors are named rather than given, and looked up in a palette, so that a
 light and a dark chart differ only in the palette and not in the table.
 """
 
@@ -89,5 +89,5 @@ FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", sans-serif'
 
 
 def palette(theme: str, overrides: dict | None = None) -> dict:
-    """The colours for a theme, with any of them replaced by name."""
+    """The colors for a theme, with any of them replaced by name."""
     return {**PALETTES[theme], **(overrides or {})}

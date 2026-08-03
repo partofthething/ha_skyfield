@@ -4,7 +4,7 @@
  * The integration hands over right ascension and declination, which change only
  * slowly. Everything that changes minute to minute is just the Earth turning
  * underneath them, and that much can be had from the clock alone -- so the chart
- * redraws itself where it stands, crisp at any size, in the colours of whatever
+ * redraws itself where it stands, crisp at any size, in the colors of whatever
  * theme is in force, without asking the server anything.
  */
 
@@ -355,7 +355,7 @@ class SkyfieldCard extends HTMLElement {
       .join("");
   }
 
-  /** Names beside colours, so nothing is identified by its colour alone. */
+  /** Names beside colors, so nothing is identified by its color alone. */
   _legend({ bodies }) {
     const entries = bodies
       .map(
@@ -453,11 +453,11 @@ class SkyfieldCard extends HTMLElement {
 }
 
 /**
- * Colours come from the theme wherever the theme has an opinion.
+ * Colors come from the theme wherever the theme has an opinion.
  *
  * That is what makes this follow dark mode: the ink, the grid and today's Sun
  * path are all the theme's own tokens, so they are chosen for the background
- * they land on rather than flipped to suit it. The bodies keep the colours they
+ * they land on rather than flipped to suit it. The bodies keep the colors they
  * have in the matplotlib image, since those say which planet you are looking at,
  * and they are ringed so that the pale ones stay visible on a pale card.
  */

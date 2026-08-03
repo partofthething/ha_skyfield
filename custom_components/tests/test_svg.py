@@ -53,7 +53,7 @@ class TestRendering(unittest.TestCase):
     def test_one_circle_per_body(self):
         self.assertEqual(len(self.find("body")), len(self.model["bodies"]))
 
-    def test_bodies_are_named_for_a_reader_who_cannot_see_colour(self):
+    def test_bodies_are_named_for_a_reader_who_cannot_see_color(self):
         titles = [circle.find(f"{SVG}title").text for circle in self.find("body")]
         self.assertEqual(titles, [body["label"] for body in self.model["bodies"]])
 
@@ -164,7 +164,7 @@ class TestOptions(unittest.TestCase):
     def test_a_title_cannot_smuggle_in_markup(self):
         self.assertIn("&lt;script&gt;", svg.render(self.model, title="<script>"))
 
-    def test_themes_choose_different_colours(self):
+    def test_themes_choose_different_colors(self):
         light = svg.render(self.model, theme="light")
         dark = svg.render(self.model, theme="dark")
         self.assertIn(svg.PALETTES["light"]["ink"], light)
@@ -189,14 +189,14 @@ class TestOptions(unittest.TestCase):
         self.assertLess(drawing.index(svg.PALETTES["light"]["ink"]), media)
         self.assertGreater(drawing.index(svg.PALETTES["dark"]["ink"]), media)
 
-    def test_a_palette_replaces_colours_by_name(self):
+    def test_a_palette_replaces_colors_by_name(self):
         self.assertIn("#abcdef", svg.render(self.model, palette={"ink": "#abcdef"}))
 
     def test_an_unknown_theme_is_refused(self):
         with self.assertRaises(ValueError):
             svg.render(self.model, theme="sepia")
 
-    def test_no_colours_are_reached_for_through_a_variable(self):
+    def test_no_colors_are_reached_for_through_a_variable(self):
         """
         librsvg does not implement ``var()``, and it is what most things rasterise
         with. An SVG that only works in a browser is half an SVG.

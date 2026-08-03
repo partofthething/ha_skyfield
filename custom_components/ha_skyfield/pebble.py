@@ -75,8 +75,8 @@ def pack(model: dict, *, when: datetime.datetime | None = None) -> bytes:
     Pack a sky model into the bytes a watch face reads.
 
     Bodies are sent as their position in :data:`bodies.BODIES` rather than with a
-    colour and a size, since the watch has its own opinion about both -- it is
-    drawing on a screen a fifth of the size, in as few colours as sixteen -- and
+    color and a size, since the watch has its own opinion about both -- it is
+    drawing on a screen a fifth of the size, in as few colors as sixteen -- and
     a byte is cheaper than either.
     """
     if when is None:

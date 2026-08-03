@@ -39,7 +39,7 @@ class Circle:
     y: float
     radius: float
     fill: str | None = None
-    # what this is, for a reader who cannot tell the colours apart
+    # what this is, for a reader who cannot tell the colors apart
     label: str | None = None
     # where a group holds more than one kind of thing, as the legend does
     style: str | None = None
@@ -304,7 +304,7 @@ def legend_height(bodies: list) -> float:
 
 def _legend(bodies: list, top: float) -> Group:
     """
-    Names beside colours, so nothing is identified by its colour alone.
+    Names beside colors, so nothing is identified by its color alone.
 
     One group holding both the swatches and the names, since they belong
     together, with each item saying how it is drawn.

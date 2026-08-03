@@ -323,7 +323,7 @@ class BodyPath:
         """
         Describe this path as data: the fixed curve it traces out over the day.
 
-        A client is left to colour it however suits its theme, so only the name
+        A client is left to color it however suits its theme, so only the name
         and whether it is a dashed line go along with the shape.
         """
         azi, alt = self.path
@@ -349,7 +349,7 @@ class Point:
         """
         Describe where this body is, as data.
 
-        The colours are CSS colour names, which is what both the card and the
+        The colors are CSS color names, which is what both the card and the
         rendered SVG want, and which say which planet you are looking at rather
         than merely being pretty.
         """

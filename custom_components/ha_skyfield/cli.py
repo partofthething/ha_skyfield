@@ -90,10 +90,10 @@ def _parser() -> argparse.ArgumentParser:
     drawing = argparse.ArgumentParser(add_help=False)
     drawing.add_argument("-o", "--output", help="a file to write, or stdout")
     drawing.add_argument(
-        "--theme", choices=svg.THEMES, default="auto", help="which colours to use"
+        "--theme", choices=svg.THEMES, default="auto", help="which colors to use"
     )
     drawing.add_argument("--title", help="a heading above the chart")
-    drawing.add_argument("--background", help="a colour to fill behind it")
+    drawing.add_argument("--background", help="a color to fill behind it")
     drawing.add_argument("--no-legend", dest="legend", action="store_false")
     drawing.add_argument("--no-time", dest="timestamp", action="store_false")
 
@@ -208,7 +208,7 @@ def _png(args) -> int:
     """
     Paint the sky rather than writing it out.
 
-    A picture cannot ask the reader which colours they prefer, so `auto` is not
+    A picture cannot ask the reader which colors they prefer, so `auto` is not
     one of the choices here; left alone it draws the light one.
     """
     theme = "light" if args.theme == "auto" else args.theme

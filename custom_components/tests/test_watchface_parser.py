@@ -72,7 +72,7 @@ class TestConstantsMatch(unittest.TestCase):
         """
         The payload sends a body's position in the table instead of its name.
 
-        A table in a different order would draw Neptune's colour on Mercury,
+        A table in a different order would draw Neptune's color on Mercury,
         which is wrong in a way nobody would spot.
         """
         source = (WATCHFACE / "sky_data.c").read_text()

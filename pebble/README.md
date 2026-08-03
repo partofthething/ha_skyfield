@@ -17,11 +17,11 @@ That builds for every platform the SDK knows about:
 
 | platform | screen | watch |
 |---|---|---|
-| `emery` | 200×228 colour | **Pebble Time 2** |
+| `emery` | 200×228 color | **Pebble Time 2** |
 | `flint` | 144×168 b&w | **Pebble 2 Duo** |
-| `gabbro` | 260×260 colour, round | round Core Devices watch |
-| `chalk` | 180×180 colour, round | Pebble Time Round |
-| `basalt` | 144×168 colour | Pebble Time |
+| `gabbro` | 260×260 color, round | round Core Devices watch |
+| `chalk` | 180×180 color, round | Pebble Time Round |
+| `basalt` | 144×168 color | Pebble Time |
 | `diorite` | 144×168 b&w | Pebble 2 |
 | `aplite` | 144×168 b&w | original Pebble |
 

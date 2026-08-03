@@ -49,7 +49,7 @@ the integration, and the chart is redrawn as soon as you save them.
 
 The card registers itself as a dashboard resource, so there is normally nothing to
 add by hand. It draws itself as SVG, so it stays sharp at any size and takes its
-colours from your theme, dark mode included.
+colors from your theme, dark mode included.
 
 If your dashboard resources are managed in YAML rather than through the UI, Home
 Assistant will not let the integration add to them, and you will see a warning in
@@ -74,7 +74,7 @@ positions every ten minutes.
 
 
 Anything you leave out follows what the integration is configured with. The
-solstice path colours can be restyled with the `--skyfield-winter-color` and
+solstice path colors can be restyled with the `--skyfield-winter-color` and
 `--skyfield-summer-color` theme variables.
 
 ### If you already have this configured in YAML
@@ -113,7 +113,7 @@ the integration as well if you want the card or the endpoints below. It takes th
 same options listed above, plus:
 
 * `image_type` `png` (default), `jpg`, or `svg`. A chart is fine lines on flat
-  colour, which is the worst thing to hand a JPEG, so `png` is the one to use.
+  color, which is the worst thing to hand a JPEG, so `png` is the one to use.
 * `theme` `light` (default) or `dark`. A picture is painted once and cannot ask
   who is looking at it, so unlike the card it has to be told.
 * `width` in pixels, 800 by default. The chart is drawn at that size rather than
@@ -147,7 +147,7 @@ The first run downloads a 17 MB ephemeris and keeps it in `~/.cache/ha_skyfield`
 so it is only slow once. The SVG is self-contained — one file, no external CSS,
 no fonts to fetch — and follows the reader's dark mode unless you pin it with
 `--theme light` or `--theme dark`. `--palette` is available from Python if you
-want it to match a site's colours.
+want it to match a site's colors.
 
 For a web page, the simplest thing is usually to redraw a file on a timer and let
 whatever already serves the site hand it out:
@@ -206,7 +206,7 @@ What this changes:
 * `Sky.plot_sky()` and the `plots` module are gone. `ha_skyfield.raster.render()`
   and `ha_skyfield.svg.render()` replace them.
 * Charts look a little different: they are the card's drawing now, rather than
-  matplotlib's, so they follow the same layout and colours the dashboard uses.
+  matplotlib's, so they follow the same layout and colors the dashboard uses.
 
 Known Issues:
 

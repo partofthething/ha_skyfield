@@ -71,7 +71,7 @@ class TestPainting(unittest.TestCase):
 
     def test_it_is_not_transparent(self):
         """
-        A see-through chart lands on a background that may be any colour at all.
+        A see-through chart lands on a background that may be any color at all.
 
         Dark ink on a dark dashboard is exactly where this would end up, so the
         picture brings its own paper.
@@ -104,7 +104,7 @@ class TestPainting(unittest.TestCase):
             dark.convert("RGB").getpixel((0, 0)), rgb(styles.PALETTES["dark"]["paper"])
         )
 
-    def test_a_palette_replaces_colours_by_name(self):
+    def test_a_palette_replaces_colors_by_name(self):
         odd = raster.render(self.model, palette={"paper": "#ff00ff"})
         self.assertEqual(open_png(odd).convert("RGB").getpixel((0, 0)), (255, 0, 255))
 
@@ -142,7 +142,7 @@ class TestItIsTheSameChart(unittest.TestCase):
 
     def test_a_body_is_painted_where_the_scene_put_it(self):
         """
-        Looked for at the spot rather than hunted for by colour.
+        Looked for at the spot rather than hunted for by color.
 
         Hunting turns up the legend swatch of the same body and every
         antialiased pixel that happens to land on the same value, neither of
@@ -186,10 +186,10 @@ class TestItIsTheSameChart(unittest.TestCase):
 
     def _solstice_pixels(self, outside: bool) -> int:
         """
-        Count pixels of either solstice colour, inside or outside the horizon.
+        Count pixels of either solstice color, inside or outside the horizon.
 
         Only within the chart's own square: the legend below it carries a swatch
-        for Neptune, whose royalblue is near enough to the winter colour to be
+        for Neptune, whose royalblue is near enough to the winter color to be
         counted, and it sits outside the horizon quite legitimately.
         """
         cx = self.drawing.clip.x * self.scale
@@ -206,8 +206,8 @@ class TestItIsTheSameChart(unittest.TestCase):
                     continue
                 pixel = self.picture.getpixel((x, y))
                 if any(
-                    sum(abs(a - b) for a, b in zip(pixel, colour, strict=True)) < 40
-                    for colour in wanted
+                    sum(abs(a - b) for a, b in zip(pixel, color, strict=True)) < 40
+                    for color in wanted
                 ):
                     found += 1
         return found
