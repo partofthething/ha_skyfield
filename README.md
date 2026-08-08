@@ -177,6 +177,19 @@ Every option can be given in the query string — `?lat=51.5&lon=-0.13&tz=Europe
 anywhere. A misspelled parameter is a 400 rather than a chart quietly drawn for
 the wrong place.
 
+`--public` is for a server open to strangers:
+
+```console
+$ skyfield-sky serve --public --port 8099
+```
+
+It starts with no place of its own, so `--lat` and `--lon` are neither asked for
+nor kept, and a request that says nowhere gets a 400 instead of the sky above
+whoever is running it. Coordinates that do arrive are rounded to two decimals —
+about a kilometre, which no chart of the whole sky can tell from none, and which
+keeps the cache to a few dozen skies rather than one per caller. `examples/` has
+a systemd unit and an Apache vhost for putting one on the open web.
+
 `skyfield-sky png` paints a picture instead, if you need one — that needs Pillow,
 which is the one thing here that is optional:
 

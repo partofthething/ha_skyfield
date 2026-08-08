@@ -1,0 +1,61 @@
+# `skyfield-sky serve` as a system service.
+#
+#   sudo cp skyfield-sky.service /etc/systemd/system/
+#   sudo cp skyfield-sky.env /etc/skyfield-sky.env && sudo chmod 600 /etc/skyfield-sky.env
+#   sudo systemctl enable --now skyfield-sky
+#
+# Assumes the package is installed in a virtualenv at /opt/skyfield-sky:
+#
+#   sudo uv venv /opt/skyfield-sky/venv
+#   sudo /opt/skyfield-sky/venv/bin/python -m pip install ha-skyfield
+
+[Unit]
+Description=Skyfield sky server
+Documentation=https://github.com/partofthething/ha_skyfield
+# the first start downloads an ephemeris of about seventeen megabytes
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+EnvironmentFile=/etc/skyfield-sky.env
+ExecStart=/opt/skyfield-sky/venv/bin/skyfield-sky serve \
+    --lat ${SKYFIELD_LAT} \
+    --lon ${SKYFIELD_LON} \
+    --tz ${SKYFIELD_TZ} \
+    --host 127.0.0.1 \
+    --port 8099 \
+    --data-dir ${CACHE_DIRECTORY}
+
+# localhost only: the server has no authentication of its own, so Apache is
+# what anything outside this machine talks to. For a server open to strangers,
+# see skyfield-sky-public.service instead; the two run side by side.
+
+Restart=on-failure
+RestartSec=5s
+
+# a user that exists only while this runs, and /var/cache/skyfield-sky for the
+# ephemeris, which is the one thing here that needs writing to
+DynamicUser=yes
+CacheDirectory=skyfield-sky
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+UMask=0077
+# no MemoryDenyWriteExecute: numpy's BLAS does not always care for it
+
+[Install]
+WantedBy=multi-user.target

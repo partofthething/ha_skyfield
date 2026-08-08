@@ -64,6 +64,11 @@ class TestOptionsFromQuery(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.read({"north_up": ["maybe"]})
 
+    def test_a_coordinate_off_the_globe_is_refused(self):
+        for query in ({"lat": ["91"]}, {"lon": ["-181"]}):
+            with self.assertRaises(ValueError):
+                self.read(query)
+
 
 class TestServing(unittest.TestCase):
     """A server on a real port, answering real requests."""
@@ -154,6 +159,68 @@ class TestServing(unittest.TestCase):
 
     def test_the_server_is_still_up_after_all_that(self):
         self.assertEqual(self.get("/sky.svg")[0], 200)
+
+
+class TestPublicServing(unittest.TestCase):
+    """A server open to strangers, which knows nowhere until a request says."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.httpd = server.serve(
+            *SEATTLE, PACIFIC, host="127.0.0.1", port=0, public=True
+        )
+        cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.port = cls.httpd.server_address[1]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        cls.httpd.server_close()
+        cls.thread.join(timeout=10)
+
+    def get(self, path):
+        url = f"http://127.0.0.1:{self.port}{path}"
+        try:
+            with urllib.request.urlopen(url, timeout=60) as answer:
+                return answer.status, answer.headers, answer.read()
+        except urllib.error.HTTPError as refused:
+            return refused.code, refused.headers, refused.read()
+
+    def test_a_request_that_says_nowhere_gets_no_chart(self):
+        """Rather than the sky above whoever is running it."""
+        for path in ("/sky.svg", "/sky.png", "/sky.json", "/sky.pebble"):
+            with self.subTest(path=path):
+                status, _headers, body = self.get(path)
+                self.assertEqual(status, 400)
+                self.assertIn(b"lat", body)
+
+    def test_the_place_it_was_started_with_is_not_a_fallback(self):
+        """`serve --public` is handed coordinates by the tests and drops them."""
+        _status, _headers, body = self.get("/sky.json?lat=51.5&lon=-0.13")
+        self.assertAlmostEqual(json.loads(body)["latitude"], 51.5)
+
+    def test_somewhere_named_in_the_query_is_drawn(self):
+        status, _headers, body = self.get(
+            "/sky.json?lat=51.5&lon=-0.13&tz=Europe/London"
+        )
+        self.assertEqual(status, 200)
+        self.assertIn("+01:00", json.loads(body)["generated"])
+
+    def test_a_place_is_kept_to_about_a_kilometre(self):
+        _status, _headers, body = self.get("/sky.json?lat=51.512345&lon=-0.134567")
+        model = json.loads(body)
+        self.assertAlmostEqual(model["latitude"], 51.51)
+        self.assertAlmostEqual(model["longitude"], -0.13)
+
+    def test_the_front_page_asks_where_the_reader_is(self):
+        status, _headers, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn(b"geolocation", body)
+
+    def test_a_coordinate_off_the_globe_is_a_bad_request(self):
+        status, _headers, _body = self.get("/sky.svg?lat=91&lon=0")
+        self.assertEqual(status, 400)
 
 
 class TestCache(unittest.TestCase):

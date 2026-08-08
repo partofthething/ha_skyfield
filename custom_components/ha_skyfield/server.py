@@ -99,6 +99,9 @@ ALIASES = {
 }
 
 NUMBERS = ("latitude", "longitude")
+# a coordinate outside these is a typo, and better said so than handed to an
+# ephemeris to produce something confident and wrong
+LIMITS = {"latitude": 90.0, "longitude": 180.0}
 WHOLE_NUMBERS = ("width",)
 WORDS = ("timezone", "theme", "title")
 FLAGS = (
@@ -144,6 +147,12 @@ def options_from_query(query: dict, defaults: dict) -> dict:
                 raise ValueError(
                     f"{name} should be a number, not {asked[name][0]!r}"
                 ) from None
+            limit = LIMITS[name]
+            if not -limit <= options[name] <= limit:
+                raise ValueError(
+                    f"{name} should be between -{limit} and {limit}, "
+                    f"not {options[name]}"
+                )
     for name in WHOLE_NUMBERS:
         if name in asked:
             try:
@@ -177,8 +186,20 @@ def _boolean(name: str, raw: str) -> bool:
     raise ValueError(f"{name} should be true or false, not {raw!r}")
 
 
-def default_options(latitude: float, longitude: float, timezone: str) -> dict:
-    """The full set of options, so that a query string only has to differ."""
+def _somewhere(options: dict) -> bool:
+    """Whether there is a place to draw the sky above."""
+    return options["latitude"] is not None and options["longitude"] is not None
+
+
+def default_options(
+    latitude: float | None, longitude: float | None, timezone: str
+) -> dict:
+    """
+    The full set of options, so that a query string only has to differ.
+
+    A public server passes no coordinates at all, which leaves the two that say
+    where as ``None`` and makes every request name its own place.
+    """
     return {
         "latitude": latitude,
         "longitude": longitude,
@@ -209,6 +230,7 @@ class SkyHandler(BaseHTTPRequestHandler):
     # set on the class by :func:`serve`
     cache: SkyCache
     defaults: dict
+    public: bool = False
 
     def do_GET(self):
         route = urlparse(self.path)
@@ -220,6 +242,15 @@ class SkyHandler(BaseHTTPRequestHandler):
             self._send(400, "text/plain; charset=utf-8", str(bad).encode())
             return
 
+        if self.public:
+            # a server drawing for strangers has no business holding anyone's
+            # address to the metre. Two decimals is about a kilometre, which no
+            # chart of the whole sky can tell from none at all, and it keeps the
+            # cache down to a few dozen skies rather than one per caller.
+            for name in NUMBERS:
+                if options[name] is not None:
+                    options[name] = round(options[name], 2)
+
         try:
             handler = {
                 "/": self._index,
@@ -230,6 +261,17 @@ class SkyHandler(BaseHTTPRequestHandler):
             }[route.path]
         except KeyError:
             self._send(404, "text/plain; charset=utf-8", b"no such thing here\n")
+            return
+
+        if route.path != "/" and not _somewhere(options):
+            # a public server was started without a place of its own, so the
+            # caller has to say; it must not quietly draw the sky above whoever
+            # happens to be running it
+            self._send(
+                400,
+                "text/plain; charset=utf-8",
+                b"say where you are: ?lat=47.61&lon=-122.33\n",
+            )
             return
 
         try:
@@ -270,7 +312,9 @@ class SkyHandler(BaseHTTPRequestHandler):
         self._send(200, "application/octet-stream", payload)
 
     def _index(self, options):
-        self._send(200, "text/html; charset=utf-8", INDEX)
+        self._send(
+            200, "text/html; charset=utf-8", PUBLIC_INDEX if self.public else INDEX
+        )
 
     def _send(self, status: int, content_type: str, body: bytes):
         self.send_response(status)
@@ -309,28 +353,99 @@ INDEX = b"""<!doctype html>
 """
 
 
+# A public server knows nowhere, so its front page has to ask. Nothing is sent
+# until the button is pressed, and the coordinates are cut to two decimals
+# first, which is as fine as the server keeps them anyway.
+PUBLIC_INDEX = b"""<!doctype html>
+<meta charset="utf-8">
+<title>Sky</title>
+<style>
+  body { margin: 0; display: grid; place-items: center; min-height: 100vh;
+         background: #fff; color: #212121; text-align: center;
+         font-family: system-ui, sans-serif; }
+  img { width: min(90vw, 90vh); }
+  main { max-width: 30rem; padding: 1.5rem; }
+  button { padding: .8rem 1.4rem; font-size: 1rem; border-radius: .5rem;
+           border: 0; background: #3f7fd0; color: #fff; }
+  .note { color: #6b6b6b; font-size: .85rem; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #101318; color: #e3e3e3; }
+    .note { color: #9b9b9b; }
+  }
+</style>
+<main id="ask">
+  <p>The Sun, Moon, planets and constellations above wherever you say.
+     This server has no place of its own.</p>
+  <p><button id="here">Draw the sky above me</button></p>
+  <p class="note">Your coordinates and your IP address reach this server.
+     To keep both to yourself, run your own: it is
+     <a href="https://github.com/partofthething/ha_skyfield">ha_skyfield</a>.
+     Or say where in the address:
+     <code>/sky.svg?lat=47.61&amp;lon=-122.33</code></p>
+</main>
+<img id="sky" alt="Chart of the sky" hidden>
+<script>
+  var zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  var img = document.getElementById("sky");
+  var ask = document.getElementById("ask");
+  var place = null;
+
+  function draw() {
+    if (!place) return;
+    // the cache buster is what stops the browser showing a stale sky
+    img.src = "/sky.svg?lat=" + place.lat + "&lon=" + place.lon +
+              "&tz=" + encodeURIComponent(zone) + "&t=" + Date.now();
+  }
+
+  document.getElementById("here").addEventListener("click", function () {
+    navigator.geolocation.getCurrentPosition(function (fix) {
+      place = { lat: fix.coords.latitude.toFixed(2),
+                lon: fix.coords.longitude.toFixed(2) };
+      ask.hidden = true;
+      img.hidden = false;
+      draw();
+    }, function () {
+      ask.querySelector("p").textContent =
+        "No location, so nowhere to draw. Put lat and lon in the address instead.";
+    });
+  });
+
+  // the sky turns a degree every four minutes, so this is smoother than an eye
+  // can follow
+  setInterval(draw, 60000);
+</script>
+"""
+
+
 def serve(
-    latitude: float,
-    longitude: float,
-    timezone: str,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    timezone: str = "UTC",
     host: str = "127.0.0.1",
     port: int = 8099,
     directory=None,
+    public: bool = False,
     **overrides,
 ) -> ThreadingHTTPServer:
     """
-    Build a server drawing the sky above one place.
+    Build a server drawing the sky above one place, or above anywhere at all.
 
     Returned rather than run, so that a caller can decide whether to serve
     forever or to serve on a thread and get on with something else -- which is
     what the tests do.
+
+    ``public`` is for a server open to strangers: it starts with no place of its
+    own, so every request has to say where it is for, and there is no address
+    left in the process for a bare ``/sky.svg`` to give away.
     """
+    if public:
+        latitude = longitude = None
     defaults = default_options(latitude, longitude, timezone)
     defaults.update({k: v for k, v in overrides.items() if v is not None})
 
     handler = type(
         "BoundSkyHandler",
         (SkyHandler,),
-        {"cache": SkyCache(directory), "defaults": defaults},
+        {"cache": SkyCache(directory), "defaults": defaults, "public": public},
     )
     return ThreadingHTTPServer((host, port), handler)

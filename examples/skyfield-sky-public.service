@@ -1,0 +1,62 @@
+# `skyfield-sky serve --public` as a system service: a server for other people,
+# which knows nowhere until a request tells it.
+#
+#   sudo cp skyfield-sky-public.service /etc/systemd/system/
+#   sudo systemctl enable --now skyfield-sky-public
+#
+# There is no EnvironmentFile here, and that is the point: no coordinates in the
+# unit, none in the environment, none in the process. Port 8100 rather than
+# 8099, so a private instance can go on running alongside it.
+
+[Unit]
+Description=Skyfield sky server, open to anyone
+Documentation=https://github.com/partofthething/ha_skyfield
+# the first start downloads an ephemeris of about seventeen megabytes
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/opt/skyfield-sky/venv/bin/skyfield-sky serve \
+    --public \
+    --host 127.0.0.1 \
+    --port 8100 \
+    --data-dir ${CACHE_DIRECTORY}
+
+Restart=on-failure
+RestartSec=5s
+
+# its own cache rather than the private instance's: two DynamicUser services get
+# two different uids, and the ephemeris is seventeen megabytes once each
+DynamicUser=yes
+CacheDirectory=skyfield-sky-public
+
+# A cold chart is about twenty milliseconds and the server draws one at a time,
+# so it tops out near fifty a second however many callers there are. It is the
+# standard library's HTTP server, which spends a thread per connection, so these
+# are what stops a flood of connections becoming a flood of threads. Apache is
+# the first thing in the way; this is the second.
+TasksMax=512
+MemoryMax=512M
+LimitNOFILE=4096
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+UMask=0077
+# no MemoryDenyWriteExecute: numpy's BLAS does not always care for it
+
+[Install]
+WantedBy=multi-user.target

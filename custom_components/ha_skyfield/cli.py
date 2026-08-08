@@ -40,20 +40,19 @@ def main(argv=None) -> int:
         parser.exit(2, f"{parser.prog}: {trouble}\n")
 
 
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="skyfield-sky",
-        description="Draw a polar chart of the Sun, Moon, planets and constellations.",
-    )
-    parser.add_argument("-v", "--verbose", action="store_true", help="say more")
-    commands = parser.add_subparsers(dest="command", required=True)
+def _where(required: bool = True) -> argparse.ArgumentParser:
+    """
+    The observer, and everything about the sky that is not about drawing it.
 
+    Shared by every command. Only ``serve --public`` leaves the coordinates
+    out, because there it is each request that says where it is for.
+    """
     where = argparse.ArgumentParser(add_help=False)
     where.add_argument(
-        "--lat", type=float, required=True, help="latitude, degrees north"
+        "--lat", type=float, required=required, help="latitude, degrees north"
     )
     where.add_argument(
-        "--lon", type=float, required=True, help="longitude, degrees east"
+        "--lon", type=float, required=required, help="longitude, degrees east"
     )
     where.add_argument(
         "--tz",
@@ -86,6 +85,21 @@ def _parser() -> argparse.ArgumentParser:
         type=_moment,
         help="a moment, in ISO format; the observer's zone if it says none",
     )
+    return where
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="skyfield-sky",
+        description="Draw a polar chart of the Sun, Moon, planets and constellations.",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="say more")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    where = _where()
+    # a public server is told no place at all, so there it is the requests that
+    # have to say, and --lat and --lon become something to leave out
+    anywhere = _where(required=False)
 
     drawing = argparse.ArgumentParser(add_help=False)
     drawing.add_argument("-o", "--output", help="a file to write, or stdout")
@@ -129,12 +143,19 @@ def _parser() -> argparse.ArgumentParser:
     watch.set_defaults(run=_pebble)
 
     serving = commands.add_parser(
-        "serve", parents=[where], help="serve the sky over HTTP"
+        "serve", parents=[anywhere], help="serve the sky over HTTP"
     )
     serving.add_argument("--host", default="127.0.0.1")
     serving.add_argument("--port", type=int, default=8099)
     serving.add_argument("--theme", choices=svg.THEMES, default="auto")
     serving.add_argument("--title")
+    serving.add_argument(
+        "--public",
+        action="store_true",
+        help="serve strangers: no place of its own, and every request says where "
+        "it is for. Without this, --lat and --lon are required and are what a "
+        "request that says nothing gets.",
+    )
     serving.set_defaults(run=_serve)
 
     keeping = commands.add_parser(
@@ -244,6 +265,9 @@ def _pebble(args) -> int:
 
 
 def _serve(args) -> int:
+    if not args.public and (args.lat is None or args.lon is None):
+        raise ValueError("serve wants --lat and --lon, or --public to want neither")
+
     httpd = server.serve(
         args.lat,
         args.lon,
@@ -251,6 +275,7 @@ def _serve(args) -> int:
         host=args.host,
         port=args.port,
         directory=args.data_dir,
+        public=args.public,
         show_constellations=args.constellations,
         constellations=args.constellation_list,
         planets=args.planets,
@@ -260,7 +285,12 @@ def _serve(args) -> int:
         title=args.title,
     )
     host, port = httpd.server_address[:2]
-    _LOGGER.info("Serving the sky on http://%s:%s/", host, port)
+    _LOGGER.info(
+        "Serving %s on http://%s:%s/",
+        "anyone's sky" if args.public else "the sky",
+        host,
+        port,
+    )
     with httpd:
         httpd.serve_forever()
     return 0

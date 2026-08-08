@@ -40,6 +40,13 @@ The watch face fetches from a skyfield server — either
 
 Both go in the settings page in the Pebble app.
 
+Failing a server of your own, *Use the public server* points the watch at
+`skyfield.partofthething.com`, which draws the sky above wherever it is told.
+It is off unless you turn it on, because turning it on sends your coordinates to
+a machine you do not run and shows it the address you ask from. It is never sent
+the token, and it needs the phone's location or typed coordinates, having none
+of its own.
+
 ## The corners
 
 A rectangular screen has four corners left over around the horizon circle. Each

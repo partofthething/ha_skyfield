@@ -26,6 +26,11 @@ var MESSAGE_WEATHER_CONDITION = "WEATHER_CONDITION";
 
 var SETTINGS_KEY = "skyfield-settings";
 
+// A server anyone may use, for anyone who does not want to run one. It is off
+// unless it is asked for, because using it means telling a machine belonging to
+// somebody else where you are, and letting it see the address you ask from.
+var PUBLIC_SERVER = "https://skyfield.partofthething.com";
+
 // how long to wait for the phone to work out where it is before giving up and
 // letting the server draw wherever it was set up for
 var LOCATION_TIMEOUT = 15000;
@@ -84,15 +89,25 @@ function saveSettings(values) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
 }
 
+/* Which server this is set to talk to, and whether it belongs to anyone here. */
+function serverUrl() {
+  var config = settings();
+  if (config.usePublicServer) {
+    return PUBLIC_SERVER;
+  }
+  return config.serverUrl || "http://127.0.0.1:8099";
+}
+
 /*
  * Where to fetch from, with whatever is known about the observer.
  *
- * Left to itself the server draws the place it was started for, so coordinates
- * only go on when there are some.
+ * Your own server draws the place it was started for, so coordinates only go on
+ * when there are some. The public one was started for nowhere and will refuse
+ * to guess, which is the whole point of it.
  */
 function skyUrl(where) {
   var config = settings();
-  var url = (config.serverUrl || "http://127.0.0.1:8099").replace(/\/+$/, "");
+  var url = serverUrl().replace(/\/+$/, "");
   url += "/sky.pebble";
 
   var query = [];
@@ -136,13 +151,22 @@ function sendPieces(bytes, index) {
 
 function request(where) {
   var config = settings();
+
+  if (config.usePublicServer && !(where && where.latitude !== undefined)) {
+    // it has no place of its own to fall back on, so asking it now would only
+    // earn a 400
+    console.log("the public server needs a location, and there is none");
+    return;
+  }
+
   var http = new XMLHttpRequest();
   http.open("GET", skyUrl(where), true);
   http.responseType = "arraybuffer";
 
   // Home Assistant wants a long-lived access token; a bare skyfield-sky server
-  // wants nothing at all
-  if (config.token) {
+  // wants nothing at all, and a server belonging to somebody else is never told
+  // a token of yours whatever the box says
+  if (config.token && !config.usePublicServer) {
     http.setRequestHeader("Authorization", "Bearer " + config.token);
   }
 

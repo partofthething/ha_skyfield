@@ -75,11 +75,22 @@ module.exports = function page(settings) {
     "fetched from a skyfield server and turned by the watch itself.</p>",
 
     "<h2>Where to fetch it from</h2>",
+    toggle(
+      "usePublicServer",
+      "Use the public server",
+      settings.usePublicServer === true,
+      "Off, and yours is the only machine involved. On, and the chart comes " +
+        "from skyfield.partofthething.com instead &mdash; which means your " +
+        "coordinates are sent to a server somebody else runs, and your IP " +
+        "address is visible to it, as it is to any site you visit. It needs " +
+        "the location below, having none of its own, and it is never sent " +
+        "the token."
+    ),
     field("serverUrl", "Server", settings.serverUrl || "", {
       placeholder: "http://host:8099",
       note:
         "A <code>skyfield-sky serve</code> address, or a Home Assistant one " +
-        "ending in /api/ha_skyfield",
+        "ending in /api/ha_skyfield. Ignored while the public server is on.",
     }),
     field("token", "Access token", settings.token || "", {
       type: "password",
@@ -94,8 +105,8 @@ module.exports = function page(settings) {
       "Use the phone's location",
       settings.useLocation,
       "Off uses the coordinates below, or the server's own if those are empty " +
-        "too. The weather, if it is on, needs one or the other &mdash; it has " +
-        "nowhere to look up a place the server keeps to itself."
+        "too. The public server has none, and the weather cannot look one up, " +
+        "so either of those needs the phone's fix or something typed here."
     ),
     field("latitude", "Latitude", settings.latitude, {
       type: "number",
@@ -165,8 +176,9 @@ module.exports = function page(settings) {
     "  text.forEach(function (name) {",
     "    out[name] = document.getElementById(name).value.trim();",
     "  });",
-    "  var flags = [\"useLocation\", \"showStars\", \"northUp\", \"horizontalFlip\",",
-    '    "showBattery", "showSteps", "showHeart", "showWeather", "fahrenheit"];',
+    '  var flags = ["usePublicServer", "useLocation", "showStars", "northUp",',
+    '    "horizontalFlip", "showBattery", "showSteps", "showHeart",',
+    '    "showWeather", "fahrenheit"];',
     "  flags.forEach(function (name) {",
     "    out[name] = document.getElementById(name).checked;",
     "  });",
