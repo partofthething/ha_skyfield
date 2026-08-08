@@ -272,7 +272,7 @@ function requestWeather(where) {
 }
 
 function fetchWeather() {
-  if (settings().showWeather === false) {
+  if (!settings().showWeather) {
     return;
   }
   withPlace(requestWeather);
@@ -287,7 +287,7 @@ function sendSettings() {
   message[MESSAGE_SHOW_BATTERY] = config.showBattery === false ? 0 : 1;
   message[MESSAGE_SHOW_STEPS] = config.showSteps === false ? 0 : 1;
   message[MESSAGE_SHOW_HEART] = config.showHeart === false ? 0 : 1;
-  message[MESSAGE_SHOW_WEATHER] = config.showWeather === false ? 0 : 1;
+  message[MESSAGE_SHOW_WEATHER] = config.showWeather ? 1 : 0;
   Pebble.sendAppMessage(message);
 }
 

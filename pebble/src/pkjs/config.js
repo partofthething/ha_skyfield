@@ -147,11 +147,11 @@ module.exports = function page(settings) {
     toggle(
       "showWeather",
       "Weather, bottom right",
-      settings.showWeather !== false,
-      "The one reading here the watch cannot take for itself, so the phone " +
-        "fetches it hourly from open-meteo.com &mdash; the only thing this " +
-        "watchface asks of anyone but your own server, and it is sent your " +
-        "coordinates to answer. Off means no fetch at all."
+      settings.showWeather === true,
+      "Off unless you turn it on, because it is the one reading here that " +
+        "leaves: the phone fetches it hourly from open-meteo.com and has to " +
+        "send your coordinates to ask. Nothing but your own server hears " +
+        "from this watchface otherwise."
     ),
     toggle("fahrenheit", "Fahrenheit", settings.fahrenheit, "Off is Celsius."),
 

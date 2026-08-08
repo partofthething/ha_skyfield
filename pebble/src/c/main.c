@@ -128,7 +128,9 @@ static bool s_show_stars = true;
 static bool s_show_battery = true;
 static bool s_show_steps = true;
 static bool s_show_heart = true;
-static bool s_show_weather = true;
+/* off until asked for: it is the one reading that costs a fetch, and the phone
+   has to be told where you are to make it */
+static bool s_show_weather = false;
 
 /* the last thing the phone said about the weather, and when it said it */
 static int16_t s_temperature;
@@ -974,7 +976,7 @@ static void init(void) {
                      : true;
   s_show_weather = persist_exists(SETTING_SHOW_WEATHER)
                        ? persist_read_bool(SETTING_SHOW_WEATHER)
-                       : true;
+                       : false;
 
   /* the last temperature the phone sent, so a restart is not blank in that
      corner until the next hour comes round. It ages out on its own. */
