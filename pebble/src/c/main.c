@@ -87,6 +87,18 @@ enum {
 #define PERSIST_FIRST_KEY 100
 #define PERSIST_LENGTH_KEY 99
 
+/*
+ * How much room the mailboxes get.
+ *
+ * Not the firmware's maximum: that is eight kilobytes apiece, and the original
+ * Pebble has about fourteen left over once the sky buffer and the window are in
+ * its twenty-four, so asking for the maximum there fails and no message ever
+ * arrives. A sky chunk and its two-byte header is the largest thing that comes
+ * in, and a single byte is the largest thing that goes out.
+ */
+#define INBOX_SIZE (SKY_CHUNK_SIZE + 256)
+#define OUTBOX_SIZE 128
+
 enum {
   MESSAGE_PAYLOAD = 0,
   MESSAGE_NORTH_UP = 1,
@@ -258,6 +270,11 @@ static void piece_arrived(const uint8_t *piece, uint16_t size) {
   }
   s_pieces_wanted = 0;
   s_pieces_seen = 0;
+}
+
+/* a mailbox that is open but too small is the other way this could go quiet */
+static void message_dropped(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "a piece of sky was dropped: %d", reason);
 }
 
 static void message_arrived(DictionaryIterator *received, void *context) {
@@ -999,8 +1016,11 @@ static void init(void) {
   window_stack_push(s_window, true);
 
   app_message_register_inbox_received(message_arrived);
-  app_message_open(app_message_inbox_size_maximum(),
-                   app_message_outbox_size_maximum());
+  app_message_register_inbox_dropped(message_dropped);
+  AppMessageResult opened = app_message_open(INBOX_SIZE, OUTBOX_SIZE);
+  if (opened != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "no mailbox: %d", opened);
+  }
 
   tick_timer_service_subscribe(REDRAW_UNIT, handle_tick);
 
