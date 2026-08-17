@@ -47,6 +47,40 @@ a machine you do not run and shows it the address you ask from. It is never sent
 the token, and it needs the phone's location or typed coordinates, having none
 of its own.
 
+## Light mode
+
+*Light mode* in the settings turns the whole face over: black on white, with
+the horizon, lettering and constellations inverted and every planet swapped for
+a darker cousin of its colour, since half the dark-mode palette is pale by
+design and pale yellow on white is a planet you cannot see. A chart of the night
+sky wants to be black and is by default, but black is what a reflective Pebble
+screen renders worst, and bright sun is when you are most likely outdoors with a
+reason to look at one.
+
+Nothing in `main.c` names black or white directly. Everything is drawn between
+`paper()` and `ink()`, so the flag turns the face over without a second copy of
+any of the drawing. Only the star field is a shade in between: sixty-four colors
+is two bits a channel, so the whole gamut holds four greys, and the date and the
+corner readings take the full ink because a grey that reads indoors is gone in
+sunlight.
+
+## The date
+
+*Date* in the settings picks the shape of the line under the time, out of five:
+
+| | |
+|---|---|
+| `Sun 16 Aug` | the default |
+| `Sun Aug 16` | the same, US order |
+| `2026-08-16` | ISO 8601 |
+| `08/16` | month first |
+| `16/08` | day first |
+
+The watch holds these as `strftime` formats in `DATE_FORMATS` and the phone
+sends an index into it, so the dropdown shows *today's* date in each shape
+rather than a fixed example — `dateSamples()` in `config.js` has to be kept in
+step with that table.
+
 ## The corners
 
 A rectangular screen has four corners left over around the horizon circle. Each

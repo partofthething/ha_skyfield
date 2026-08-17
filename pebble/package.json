@@ -1,7 +1,7 @@
 {
   "name": "skyfield",
   "author": "Nick Touran",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "keywords": [
     "pebble-app",
     "astronomy"
@@ -39,7 +39,9 @@
       "SHOW_HEART": 6,
       "SHOW_WEATHER": 7,
       "WEATHER_TEMPERATURE": 8,
-      "WEATHER_CONDITION": 9
+      "WEATHER_CONDITION": 9,
+      "LIGHT_MODE": 10,
+      "DATE_FORMAT": 11
     },
     "resources": {
       "media": [

@@ -42,6 +42,53 @@ function toggle(name, label, checked, note) {
   );
 }
 
+/* A dropdown. The value saved is the position in the list, which is what the
+   watch wants: an index into DATE_FORMATS in src/c/main.c. */
+function choice(name, label, chosen, options, note) {
+  var items = options.map(function (option, index) {
+    return (
+      '<option value="' + index + '"' +
+      (String(index) === String(chosen || 0) ? " selected" : "") +
+      ">" + escapeHtml(option) + "</option>"
+    );
+  });
+  return (
+    '<label for="' + name + '">' + label + "</label>" +
+    '<select id="' + name + '" name="' + name + '">' + items.join("") + "</select>" +
+    (note ? '<p class="note">' + note + "</p>" : "")
+  );
+}
+
+/*
+ * Today's date in each of the shapes the watch can draw it in.
+ *
+ * Today's rather than some fixed example, because the question the dropdown is
+ * really asking is "which of these do you want to read on your wrist", and the
+ * quickest way to answer it is to see them. Must stay in step with DATE_FORMATS
+ * in src/c/main.c; that is the table these are samples of.
+ */
+function dateSamples() {
+  var now = new Date();
+  var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var pad = function (number) {
+    return (number < 10 ? "0" : "") + number;
+  };
+
+  var day = days[now.getDay()];
+  var month = months[now.getMonth()];
+  var date = now.getDate();
+
+  return [
+    day + " " + date + " " + month,
+    day + " " + month + " " + date,
+    now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(date),
+    pad(now.getMonth() + 1) + "/" + pad(date),
+    pad(date) + "/" + pad(now.getMonth() + 1),
+  ];
+}
+
 /* The whole settings page, with whatever is already set filled in. */
 module.exports = function page(settings) {
   settings = settings || {};
@@ -58,7 +105,7 @@ module.exports = function page(settings) {
     "h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .08em;",
     "  color: #9b9b9b; margin: 28px 0 8px; }",
     "label { display: block; margin: 14px 0 4px; }",
-    "input[type=text], input[type=password], input[type=number] {",
+    "input[type=text], input[type=password], input[type=number], select {",
     "  width: 100%; box-sizing: border-box; padding: 10px;",
     "  background: #1b2029; color: #e3e3e3; border: 1px solid #3a3a3a;",
     "  border-radius: 8px; font-size: 16px; }",
@@ -120,6 +167,15 @@ module.exports = function page(settings) {
     }),
 
     "<h2>The chart</h2>",
+    toggle(
+      "lightMode",
+      "Light mode",
+      settings.lightMode,
+      "Off draws the night sky on black, which is what it looks like. On " +
+        "turns the whole face over &mdash; black on white, with the planets " +
+        "in darker colours &mdash; which is easier to read in bright sun, the " +
+        "one light a Pebble's screen is best in and black is worst in."
+    ),
     toggle("showStars", "Constellations", settings.showStars !== false),
     toggle(
       "northUp",
@@ -129,6 +185,13 @@ module.exports = function page(settings) {
         "the northern hemisphere."
     ),
     toggle("horizontalFlip", "Mirror it", settings.horizontalFlip),
+    choice(
+      "dateFormat",
+      "Date",
+      settings.dateFormat,
+      dateSamples(),
+      "Today's date, in each of the shapes it can be written under the time."
+    ),
     field("constellations", "Only these", settings.constellations || "", {
       placeholder: "Orion,UrsaMajor",
       note:
@@ -172,11 +235,12 @@ module.exports = function page(settings) {
     "<script>",
     'document.getElementById("save").addEventListener("click", function () {',
     "  var out = {};",
-    '  var text = ["serverUrl", "token", "latitude", "longitude", "constellations"];',
+    '  var text = ["serverUrl", "token", "latitude", "longitude", "constellations",',
+    '    "dateFormat"];',
     "  text.forEach(function (name) {",
     "    out[name] = document.getElementById(name).value.trim();",
     "  });",
-    '  var flags = ["usePublicServer", "useLocation", "showStars", "northUp",',
+    '  var flags = ["usePublicServer", "useLocation", "lightMode", "showStars", "northUp",',
     '    "horizontalFlip", "showBattery", "showSteps", "showHeart",',
     '    "showWeather", "fahrenheit"];',
     "  flags.forEach(function (name) {",

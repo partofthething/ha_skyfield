@@ -23,6 +23,8 @@ var MESSAGE_SHOW_HEART = "SHOW_HEART";
 var MESSAGE_SHOW_WEATHER = "SHOW_WEATHER";
 var MESSAGE_WEATHER_TEMPERATURE = "WEATHER_TEMPERATURE";
 var MESSAGE_WEATHER_CONDITION = "WEATHER_CONDITION";
+var MESSAGE_LIGHT_MODE = "LIGHT_MODE";
+var MESSAGE_DATE_FORMAT = "DATE_FORMAT";
 
 var SETTINGS_KEY = "skyfield-settings";
 
@@ -312,6 +314,9 @@ function sendSettings() {
   message[MESSAGE_SHOW_STEPS] = config.showSteps === false ? 0 : 1;
   message[MESSAGE_SHOW_HEART] = config.showHeart === false ? 0 : 1;
   message[MESSAGE_SHOW_WEATHER] = config.showWeather ? 1 : 0;
+  message[MESSAGE_LIGHT_MODE] = config.lightMode ? 1 : 0;
+  // an index into DATE_FORMATS in src/c/main.c; the watch bounds it itself
+  message[MESSAGE_DATE_FORMAT] = parseInt(config.dateFormat, 10) || 0;
   Pebble.sendAppMessage(message);
 }
 

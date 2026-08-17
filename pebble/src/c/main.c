@@ -110,6 +110,8 @@ enum {
   MESSAGE_SHOW_WEATHER = 7,
   MESSAGE_WEATHER_TEMPERATURE = 8,
   MESSAGE_WEATHER_CONDITION = 9,
+  MESSAGE_LIGHT_MODE = 10,
+  MESSAGE_DATE_FORMAT = 11,
 };
 
 enum {
@@ -123,7 +125,29 @@ enum {
   SETTING_WEATHER_TEMPERATURE = 8,
   SETTING_WEATHER_CONDITION = 9,
   SETTING_WEATHER_TAKEN = 10,
+  SETTING_LIGHT_MODE = 11,
+  SETTING_DATE_FORMAT = 12,
 };
+
+/*
+ * The shapes a date can take, in the order the settings page offers them.
+ *
+ * strftime does the work, so this is a table of five strings rather than any
+ * code. `%e` pads a single-digit day with a space rather than a zero, which is
+ * what you want in "Sun 6 Sep" and not what you want in "09/06", so the numeric
+ * forms use `%d` and `%m`.
+ *
+ * Keep in step with the samples in src/pkjs/config.js, which shows today's date
+ * in each of these so the choice is made by looking rather than by guessing.
+ */
+static const char *const DATE_FORMATS[] = {
+    "%a %e %b",  /* Sun 16 Aug */
+    "%a %b %e",  /* Sun Aug 16 */
+    "%Y-%m-%d",  /* 2026-08-16 */
+    "%m/%d",     /* 08/16 */
+    "%d/%m",     /* 16/08 */
+};
+#define DATE_FORMAT_COUNT (sizeof(DATE_FORMATS) / sizeof(DATE_FORMATS[0]))
 
 /* worked out once from whatever screen this turns out to be on */
 static GFont s_compass_font;
@@ -144,6 +168,19 @@ static bool s_show_heart = true;
    has to be told where you are to make it */
 static bool s_show_weather = false;
 
+/*
+ * Which way round the face is drawn.
+ *
+ * A chart of the night sky wants to be black, and is: that is the default and
+ * what everything here was chosen for. But black is the one thing a Pebble's
+ * reflective screen is worst at, and full sun is exactly when you are outdoors
+ * with a reason to look at a sky chart. So the whole face turns inside out.
+ */
+static bool s_light_mode = false;
+
+/* which of DATE_FORMATS the date under the time is written in */
+static uint8_t s_date_format = 0;
+
 /* the last thing the phone said about the weather, and when it said it */
 static int16_t s_temperature;
 static uint8_t s_condition = WEATHER_UNKNOWN;
@@ -152,6 +189,33 @@ static int32_t s_weather_taken;
 /* which pieces of a split payload have turned up, one bit each */
 static uint32_t s_pieces_wanted;
 static uint32_t s_pieces_seen;
+
+/*
+ * The two colors of everything, and the one that is chosen between them.
+ *
+ * Nothing below names black or white directly. `paper` is whatever the sky is
+ * drawn on and `ink` is whatever is drawn on it, so one flag turns the face
+ * over without a second copy of any of the drawing.
+ */
+#define EITHER(on_dark, on_light) (s_light_mode ? (on_light) : (on_dark))
+
+static GColor paper(void) { return EITHER(GColorBlack, GColorWhite); }
+static GColor ink(void) { return EITHER(GColorWhite, GColorBlack); }
+
+/*
+ * One step in from the paper: the star field, which is background.
+ *
+ * The only step there is. Sixty-four colors is two bits a channel, so the whole
+ * gamut holds four greys and no more, and picking between them is picking one
+ * of four rather than dialling in an opacity. The date and the corner readings
+ * used to be a step in from the ink for the same reason the stars are a step in
+ * from the paper, but a grey that reads indoors is gone in sunlight, and this
+ * face is meant to be looked at outdoors; they are drawn in the full ink now
+ * and told apart from the time by size instead.
+ */
+static GColor faint(void) {
+  return PBL_IF_COLOR_ELSE(EITHER(GColorLightGray, GColorDarkGray), ink());
+}
 
 #ifdef PBL_COLOR
 /*
@@ -172,7 +236,37 @@ static const GColor BODY_COLORS[SKY_BODY_COUNT] = {
     {.argb = GColorCelesteARGB8},      /* Uranus */
     {.argb = GColorBlueMoonARGB8},     /* Neptune */
 };
+
+/*
+ * The same nine, moved to the dark end of the palette.
+ *
+ * Not the same colors: pale yellow on white is a body you cannot see at all,
+ * and half the table above is pale by design, because on black pale is what
+ * bright looks like. Each one keeps its hue and gives up its lightness, which
+ * is enough to go on telling them apart -- Saturn stays yellow, Mars stays red.
+ */
+static const GColor BODY_COLORS_LIGHT[SKY_BODY_COUNT] = {
+    {.argb = GColorOrangeARGB8},              /* Sun */
+    {.argb = GColorRoseValeARGB8},            /* Mercury */
+    {.argb = GColorWindsorTanARGB8},          /* Venus */
+    {.argb = GColorDarkGrayARGB8},            /* Moon */
+    {.argb = GColorDarkCandyAppleRedARGB8},   /* Mars */
+    {.argb = GColorArmyGreenARGB8},           /* Jupiter */
+    {.argb = GColorLimerickARGB8},            /* Saturn */
+    {.argb = GColorTiffanyBlueARGB8},         /* Uranus */
+    {.argb = GColorDukeBlueARGB8},            /* Neptune */
+};
 #endif
+
+/* what to fill a body with, which on a screen without colors is just the ink */
+static GColor body_color(uint8_t body) {
+#ifdef PBL_COLOR
+  return s_light_mode ? BODY_COLORS_LIGHT[body] : BODY_COLORS[body];
+#else
+  (void)body;
+  return ink();
+#endif
+}
 
 /* ---------------------------------------------------------------- keeping it */
 
@@ -325,6 +419,25 @@ static void message_arrived(DictionaryIterator *received, void *context) {
     layer_mark_dirty(s_chart);
   }
 
+  Tuple *light = dict_find(received, MESSAGE_LIGHT_MODE);
+  if (light) {
+    s_light_mode = light->value->int32 != 0;
+    persist_write_bool(SETTING_LIGHT_MODE, s_light_mode);
+    /* the window is what shows through before the chart has drawn itself */
+    window_set_background_color(s_window, paper());
+    layer_mark_dirty(s_chart);
+  }
+
+  /* an index into a table, so anything the phone does not know about -- an
+     older watch talking to a newer settings page -- falls back to the first */
+  Tuple *date_format = dict_find(received, MESSAGE_DATE_FORMAT);
+  if (date_format) {
+    uint32_t chosen = (uint32_t)date_format->value->int32;
+    s_date_format = (chosen < DATE_FORMAT_COUNT) ? (uint8_t)chosen : 0;
+    persist_write_int(SETTING_DATE_FORMAT, s_date_format);
+    layer_mark_dirty(s_chart);
+  }
+
   Tuple *weather = dict_find(received, MESSAGE_SHOW_WEATHER);
   if (weather) {
     s_show_weather = weather->value->int32 != 0;
@@ -369,7 +482,7 @@ static void draw_grid(GContext *ctx) {
    * so much room, and the Sun's paths say more about the season than a ring at
    * thirty degrees says about anything.
    */
-  graphics_context_set_stroke_color(ctx, GColorWhite);
+  graphics_context_set_stroke_color(ctx, ink());
   graphics_context_set_stroke_width(ctx, 2);
   graphics_draw_circle(ctx, centre, s_layout.horizon_radius);
 }
@@ -389,16 +502,16 @@ static void draw_sun_paths(GContext *ctx) {
   for (uint8_t path = 0; path < s_sky.path_count; path++) {
     uint8_t kind = sky_data_path_kind(&s_sky, path);
 
-    GColor color = GColorWhite;
+    GColor color = ink();
 #ifdef PBL_COLOR
     if (kind == SKY_PATH_WINTER) {
-      color = GColorPictonBlue;
+      color = EITHER(GColorPictonBlue, GColorBlue);
     } else if (kind == SKY_PATH_SUMMER) {
-      color = GColorScreaminGreen;
+      color = EITHER(GColorScreaminGreen, GColorIslamicGreen);
     } else {
       /* the Sun's own color, so today's track is not mistaken for the horizon,
-         which is the other white circle of about that size */
-      color = GColorYellow;
+         which is the other plain circle of about that size */
+      color = EITHER(GColorYellow, GColorOrange);
     }
 #endif
     /* all three the same weight: today's track is told apart by its color, and
@@ -463,7 +576,7 @@ static void draw_arc_segment(GContext *ctx, SkyPathPoint from,
 static void draw_compass(GContext *ctx) {
   static const char *const NAMES[] = {"N", "E", "S", "W"};
 
-  graphics_context_set_text_color(ctx, GColorWhite);
+  graphics_context_set_text_color(ctx, ink());
   for (int quarter = 0; quarter < 4; quarter++) {
     SkyAltAz at = {
         .azimuth = quarter * TRIG_MAX_ANGLE / 4,
@@ -480,8 +593,7 @@ static void draw_compass(GContext *ctx) {
 }
 
 static void draw_stars(GContext *ctx, const SkyObserver *observer) {
-  graphics_context_set_stroke_color(ctx,
-                                    PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite));
+  graphics_context_set_stroke_color(ctx, faint());
   graphics_context_set_stroke_width(ctx, 1);
 
   /* the joins first, so the stars themselves sit on top of them */
@@ -521,10 +633,8 @@ static void draw_stars(GContext *ctx, const SkyObserver *observer) {
   /* grey rather than white, on a screen that can tell the difference: the stars
      are the background of this chart and the planets are the subject, and white
      dots everywhere left nothing for the Sun and the planets to stand out from.
-     The darker of the two greys, which is as far down as sixty-four colours go
-     before black. */
-  graphics_context_set_fill_color(ctx,
-                                  PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite));
+     One step in from the paper, whichever paper that is. */
+  graphics_context_set_fill_color(ctx, faint());
   for (uint16_t index = 0; index < s_sky.star_count; index++) {
     SkyStar star = sky_data_star(&s_sky, index);
     int32_t altitude;
@@ -550,18 +660,18 @@ static void draw_bodies(GContext *ctx, const SkyObserver *observer) {
 
     GPoint at = GPoint(point.x, point.y);
     uint8_t radius = SKY_BODIES[body.body].radius;
-    graphics_context_set_fill_color(
-        ctx, PBL_IF_COLOR_ELSE(BODY_COLORS[body.body], GColorWhite));
+    graphics_context_set_fill_color(ctx, body_color(body.body));
     graphics_fill_circle(ctx, at, radius);
-    /* a ring, so a pale planet is still visible against a lit star field */
-    graphics_context_set_stroke_color(ctx, GColorBlack);
+    /* a ring of the background, so a planet the colour of the paper still has
+       an edge where it crosses a constellation line */
+    graphics_context_set_stroke_color(ctx, paper());
     graphics_context_set_stroke_width(ctx, 1);
     graphics_draw_circle(ctx, at, radius);
   }
 }
 
-/* the patch of night a piece of lettering sits on */
-static GRect night_behind(GRect text) {
+/* the patch of empty sky a piece of lettering sits on */
+static GRect patch_behind(GRect text) {
   return GRect(text.origin.x - TIME_PAD_X, text.origin.y + TIME_PAD_Y,
                text.size.w + 2 * TIME_PAD_X, text.size.h - 2 * TIME_PAD_Y);
 }
@@ -572,7 +682,7 @@ static void draw_time(GContext *ctx, GRect bounds) {
   time_t now = time(NULL);
   struct tm *local = localtime(&now);
   strftime(clock, sizeof(clock), clock_is_24h_style() ? "%H:%M" : "%I:%M", local);
-  strftime(date, sizeof(date), "%a %e %b", local);
+  strftime(date, sizeof(date), DATE_FORMATS[s_date_format], local);
 
   /*
    * Measured, not guessed at. Digits are not all one width, so a box cut to fit
@@ -595,18 +705,17 @@ static void draw_time(GContext *ctx, GRect bounds) {
   GRect under = GRect(s_layout.centre_x - date_size.w / 2,
                       box.origin.y + clock_size.h - 2, date_size.w, date_size.h);
 
-  /* a patch of night behind them, so the stars do not read through the numbers */
-  graphics_context_set_fill_color(ctx, GColorBlack);
-  graphics_fill_rect(ctx, night_behind(box), 4, GCornersAll);
-  graphics_fill_rect(ctx, night_behind(under), 4, GCornersAll);
+  /* a clear patch behind them, so the stars do not read through the numbers */
+  graphics_context_set_fill_color(ctx, paper());
+  graphics_fill_rect(ctx, patch_behind(box), 4, GCornersAll);
+  graphics_fill_rect(ctx, patch_behind(under), 4, GCornersAll);
 
-  graphics_context_set_text_color(ctx, GColorWhite);
+  graphics_context_set_text_color(ctx, ink());
   graphics_draw_text(ctx, clock, s_time_font, box,
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
                      NULL);
 
-  graphics_context_set_text_color(ctx,
-                                  PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
+  graphics_context_set_text_color(ctx, ink());
   graphics_draw_text(ctx, date, s_date_font, under,
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
                      NULL);
@@ -626,7 +735,7 @@ static void draw_time(GContext *ctx, GRect bounds) {
  * because a symmetrical figure at this size reads as a star, not a stride.
  */
 static void draw_walk_icon(GContext *ctx, GPoint at) {
-  GColor color = PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite);
+  GColor color = ink();
   graphics_context_set_fill_color(ctx, color);
   graphics_context_set_stroke_color(ctx, color);
   graphics_context_set_stroke_width(ctx, 1);
@@ -654,7 +763,7 @@ static void draw_walk_icon(GContext *ctx, GPoint at) {
  * you without a GPath to keep.
  */
 static void draw_heart_icon(GContext *ctx, GPoint at) {
-  GColor color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite);
+  GColor color = PBL_IF_COLOR_ELSE(EITHER(GColorRed, GColorDarkCandyAppleRed), ink());
   graphics_context_set_fill_color(ctx, color);
   graphics_context_set_stroke_color(ctx, color);
   graphics_context_set_stroke_width(ctx, 1);
@@ -669,8 +778,7 @@ static void draw_heart_icon(GContext *ctx, GPoint at) {
 
 /* The cloud the wet conditions are all built on, low in a WEATHER_W box. */
 static void draw_cloud(GContext *ctx, GPoint at) {
-  graphics_context_set_fill_color(ctx,
-                                  PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
+  graphics_context_set_fill_color(ctx, ink());
   graphics_fill_circle(ctx, GPoint(at.x + 4, at.y + 6), 3);
   graphics_fill_circle(ctx, GPoint(at.x + 8, at.y + 5), 4);
   graphics_fill_circle(ctx, GPoint(at.x + 11, at.y + 6), 3);
@@ -684,9 +792,9 @@ static void draw_cloud(GContext *ctx, GPoint at) {
  * finer -- light rain against heavy -- is a distinction the pixels cannot make.
  */
 static void draw_weather_icon(GContext *ctx, GPoint at, uint8_t condition) {
-  GColor sun = PBL_IF_COLOR_ELSE(GColorYellow, GColorWhite);
-  GColor wet = PBL_IF_COLOR_ELSE(GColorPictonBlue, GColorWhite);
-  GColor pale = PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite);
+  GColor sun = PBL_IF_COLOR_ELSE(EITHER(GColorYellow, GColorOrange), ink());
+  GColor wet = PBL_IF_COLOR_ELSE(EITHER(GColorPictonBlue, GColorBlue), ink());
+  GColor pale = ink();
 
   graphics_context_set_stroke_width(ctx, 1);
 
@@ -705,10 +813,10 @@ static void draw_weather_icon(GContext *ctx, GPoint at, uint8_t condition) {
 
     case WEATHER_CLEAR_NIGHT:
       /* a crescent is a disc with a second disc taken out of it, and taking it
-         out is drawing it again in the colour of the night behind */
+         out is drawing it again in the colour of whatever is behind */
       graphics_context_set_fill_color(ctx, pale);
       graphics_fill_circle(ctx, GPoint(at.x + 7, at.y + 6), 5);
-      graphics_context_set_fill_color(ctx, GColorBlack);
+      graphics_context_set_fill_color(ctx, paper());
       graphics_fill_circle(ctx, GPoint(at.x + 10, at.y + 4), 5);
       break;
 
@@ -733,7 +841,7 @@ static void draw_weather_icon(GContext *ctx, GPoint at, uint8_t condition) {
 
     case WEATHER_SNOW:
       draw_cloud(ctx, at);
-      graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorWhite, GColorWhite));
+      graphics_context_set_fill_color(ctx, ink());
       for (int16_t flake = 0; flake < 3; flake++) {
         graphics_fill_circle(ctx, GPoint(at.x + 4 + flake * 4, at.y + 11), 1);
       }
@@ -819,7 +927,7 @@ static void draw_status(GContext *ctx, GRect bounds) {
                        bounds.origin.y + bounds.size.h - STATUS_MARGIN -
                            s_status_height,
                        top.size.w, s_status_height);
-  GColor pale = PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite);
+  GColor pale = ink();
 
 #ifdef PBL_HEALTH
   if (s_show_steps &&
@@ -867,9 +975,9 @@ static void draw_status(GContext *ctx, GRect bounds) {
     GColor color = pale;
 #ifdef PBL_COLOR
     if (battery.is_charging || battery.is_plugged) {
-      color = GColorScreaminGreen;
+      color = EITHER(GColorScreaminGreen, GColorIslamicGreen);
     } else if (battery.charge_percent <= BATTERY_LOW) {
-      color = GColorRed;
+      color = EITHER(GColorRed, GColorDarkCandyAppleRed);
     }
 #endif
     graphics_context_set_text_color(ctx, color);
@@ -892,7 +1000,7 @@ static void draw_status(GContext *ctx, GRect bounds) {
 }
 
 static void draw_waiting(GContext *ctx, GRect bounds) {
-  graphics_context_set_text_color(ctx, GColorWhite);
+  graphics_context_set_text_color(ctx, ink());
   graphics_draw_text(ctx, "waiting for the sky",
                      fonts_get_system_font(FONT_KEY_GOTHIC_18),
                      GRect(bounds.origin.x, bounds.size.h / 2 - 12, bounds.size.w, 40),
@@ -902,7 +1010,7 @@ static void draw_waiting(GContext *ctx, GRect bounds) {
 static void draw_chart(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
 
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, paper());
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
   if (!s_sky.valid) {
@@ -994,6 +1102,14 @@ static void init(void) {
   s_show_weather = persist_exists(SETTING_SHOW_WEATHER)
                        ? persist_read_bool(SETTING_SHOW_WEATHER)
                        : false;
+  s_light_mode = persist_read_bool(SETTING_LIGHT_MODE);
+
+  /* checked on the way back out as well as on the way in: watch storage
+     outlives the build that wrote it, and a stale index is a read off the end */
+  int32_t format = persist_read_int(SETTING_DATE_FORMAT);
+  s_date_format = (format > 0 && format < (int32_t)DATE_FORMAT_COUNT)
+                      ? (uint8_t)format
+                      : 0;
 
   /* the last temperature the phone sent, so a restart is not blank in that
      corner until the next hour comes round. It ages out on its own. */
@@ -1008,7 +1124,7 @@ static void init(void) {
   load_sky();
 
   s_window = window_create();
-  window_set_background_color(s_window, GColorBlack);
+  window_set_background_color(s_window, paper());
   window_set_window_handlers(s_window, (WindowHandlers){
                                            .load = window_load,
                                            .unload = window_unload,
