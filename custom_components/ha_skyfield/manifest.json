@@ -11,5 +11,5 @@
   "after_dependencies": ["lovelace"],
   "codeowners": ["@partofthething"],
   "requirements": ["skyfield>=1.49", "numpy", "Pillow"],
-  "version": "3.0.2"
+  "version": "3.0.3"
 }
