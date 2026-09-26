@@ -2,6 +2,7 @@
   "domain": "ha_skyfield",
   "name": "HA Skyfield",
   "documentation": "https://github.com/partofthething/ha_skyfield",
+  "issue_tracker": "https://github.com/partofthething/ha_skyfield/issues",
   "config_flow": true,
   "single_config_entry": true,
   "integration_type": "service",

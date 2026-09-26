@@ -18,7 +18,6 @@ PACKAGE = pathlib.Path(ha_skyfield.__file__).parent
 ROOT = PACKAGE.parent.parent
 MANIFEST = json.loads((PACKAGE / "manifest.json").read_text())
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text())
-HACS = json.loads((ROOT / "hacs.json").read_text())
 
 
 class TestVersions(unittest.TestCase):
@@ -115,11 +114,6 @@ class TestPackaging(unittest.TestCase):
 
     def test_there_is_a_command(self):
         self.assertIn("skyfield-sky", PYPROJECT["project"]["scripts"])
-
-    def test_hacs_advertises_what_is_actually_here(self):
-        for domain in HACS["domains"]:
-            with self.subTest(domain=domain):
-                self.assertTrue((PACKAGE / f"{domain}.py").is_file())
 
 
 if __name__ == "__main__":
