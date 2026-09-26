@@ -1,7 +1,7 @@
-# Skyfield, on a wrist
+# Skyfield Pebble watch face
 
-A Pebble watch face showing the Sun, Moon, planets and constellation figures
-above wherever you are, with the time in the middle.
+A Pebble watch face showing the Sun, Moon, planets, and constellations above
+your location, with the time in the middle.
 
 ## Building
 
@@ -13,9 +13,9 @@ $ cd pebble
 $ pebble build
 ```
 
-That builds every platform the SDK knows: `emery` (Pebble Time 2), `flint`
-(Pebble 2 Duo), `gabbro` (round Core Devices), `chalk`, `basalt`, `diorite`,
-`aplite`. Lettering comes in two sizes, chosen from the screen's width.
+That builds for every platform the SDK supports: `emery` (Pebble Time 2),
+`flint` (Pebble 2 Duo), `gabbro` (round Core Devices), `chalk`, `basalt`,
+`diorite`, and `aplite`. Text size is picked based on screen width.
 
 ## Putting it on a watch
 
@@ -25,48 +25,43 @@ $ pebble install --phone 192.168.1.42   # direct, same wifi, Developer Connectio
 $ pebble install --emulator emery       # no watch needed
 ```
 
-Failing those, send `build/pebble.pbw` to the phone and open it with the Pebble
-app. `pebble logs` shows what the watch and the phone-side JavaScript are
-saying.
+Otherwise, send `build/pebble.pbw` to your phone and open it with the Pebble
+app. `pebble logs` shows log output from the watch and the phone-side JavaScript.
 
 ## Feeding it
 
-The watch face fetches from a skyfield server — either
+The watch face fetches data from a skyfield server, either:
 
 * `skyfield-sky serve --lat 47.608 --lon -122.335 --tz America/Los_Angeles`,
   reachable from your phone, no token, or
 * Home Assistant at `https://your-home-assistant/api/ha_skyfield` with a
   long-lived access token.
 
-Both go in the settings page in the Pebble app.
+Set these in the watch face settings in the Pebble app.
 
-Failing a server of your own, *Use the public server* points the watch at
-`skyfield.partofthething.com`, which draws the sky above wherever it is told.
-It is off unless you turn it on, because turning it on sends your coordinates to
-a machine you do not run and shows it the address you ask from. It is never sent
-the token, and it needs the phone's location or typed coordinates, having none
-of its own.
+If you don't run your own server, *Use the public server* points the watch at
+`skyfield.partofthething.com`. It's off by default because it sends your
+coordinates and IP address to a server you don't control. The token is never
+sent to it. Since it has no location of its own, you'll need to enable the
+phone's location or enter coordinates.
 
 ## Light mode
 
-*Light mode* in the settings turns the whole face over: black on white, with
-the horizon, lettering and constellations inverted and every planet swapped for
-a darker cousin of its colour, since half the dark-mode palette is pale by
-design and pale yellow on white is a planet you cannot see. A chart of the night
-sky wants to be black and is by default, but black is what a reflective Pebble
-screen renders worst, and bright sun is when you are most likely outdoors with a
-reason to look at one.
+*Light mode* in the settings switches to black on white. The horizon, text,
+and constellations are inverted, and each planet uses a darker version of its
+color, since many of the dark mode colors are too pale to see on white. The
+default is dark because it's a night sky chart, but reflective Pebble screens
+are hard to read in dark mode in bright sunlight.
 
-Nothing in `main.c` names black or white directly. Everything is drawn between
-`paper()` and `ink()`, so the flag turns the face over without a second copy of
-any of the drawing. Only the star field is a shade in between: sixty-four colors
-is two bits a channel, so the whole gamut holds four greys, and the date and the
-corner readings take the full ink because a grey that reads indoors is gone in
-sunlight.
+`main.c` never uses black or white directly. Everything is drawn with `paper()`
+and `ink()`, so light mode doesn't need a second copy of the drawing code. The
+star field is the only thing drawn in grey. With 64 colors (two bits per
+channel) there are only four greys, and the date and corner readings use full
+ink because grey is hard to read in sunlight.
 
 ## The date
 
-*Date* in the settings picks the shape of the line under the time, out of five:
+*Date* in the settings picks the format of the date under the time:
 
 | | |
 |---|---|
@@ -76,16 +71,15 @@ sunlight.
 | `08/16` | month first |
 | `16/08` | day first |
 
-The watch holds these as `strftime` formats in `DATE_FORMATS` and the phone
-sends an index into it, so the dropdown shows *today's* date in each shape
-rather than a fixed example — `dateSamples()` in `config.js` has to be kept in
-step with that table.
+The watch stores these as `strftime` formats in `DATE_FORMATS` and the phone
+sends an index into that list. The settings dropdown shows today's date in each
+format, so `dateSamples()` in `config.js` needs to stay in sync with that table.
 
 ## The corners
 
-A rectangular screen has four corners left over around the horizon circle. Each
-holds one reading and each can be turned off. Round watches (`chalk`, `gabbro`)
-leave all four out.
+Rectangular screens have four free corners around the horizon circle. Each
+shows one reading and each can be turned off. Round watches (`chalk`, `gabbro`)
+don't show them.
 
 | | |
 |---|---|
@@ -94,23 +88,23 @@ leave all four out.
 | bottom left | heart rate |
 | bottom right | temperature and a weather icon |
 
-Steps and heart rate are only *read* from what the firmware already recorded —
-this face never calls `health_service_set_heart_rate_sample_period`, so a heart
-rate may be some minutes old and costs no battery.
+Steps and heart rate are read from whatever the firmware has already recorded.
+The face never calls `health_service_set_heart_rate_sample_period`, so heart
+rate may be a few minutes old but costs no extra battery.
 
-**Weather is off by default**, because it is the only thing that leaves. No
-Pebble API exposes the weather, so `src/pkjs/index.js` fetches it hourly from
-[open-meteo.com][om], which is sent your coordinates to answer — the only
-request this watchface makes of anyone but your own server. Turning the corner
-on needs *Use the phone's location* or a typed latitude and longitude; a server
-keeps its own place to itself. The watch ages a reading out after four hours.
-Open-Meteo's [WMO codes][wmo] are flattened by the phone to eight drawable
-conditions, because at fifteen pixels light and heavy rain are the same picture.
+**Weather is off by default** because it's the only feature that sends data to
+a third party. There's no Pebble weather API, so `src/pkjs/index.js` fetches it
+hourly from [open-meteo.com][om] using your coordinates. This is the only
+request the watch face makes to anything other than your own server. Weather
+needs *Use the phone's location* or a typed latitude and longitude, since the
+server doesn't share its location. Readings older than four hours are dropped.
+The phone maps Open-Meteo's [WMO codes][wmo] down to eight icons, since at 15
+pixels light and heavy rain look the same.
 
-The corner icons are drawn in code, not shipped as resources — a PNG would be
-seven more files to keep in step across seven platforms. The one real resource
-is `resources/images/menu_icon.png`, the 25×25 launcher icon, which the
-appstore and the phone insist on; `tools/make_menu_icon.py` redraws it.
+The corner icons are drawn in code rather than shipped as image resources, to
+avoid maintaining extra files across seven platforms. The only image resource
+is `resources/images/menu_icon.png`, the 25×25 launcher icon required by the
+appstore and phone app. `tools/make_menu_icon.py` regenerates it.
 
 > Editing `messageKeys` in `package.json`? Run `pebble clean` after: waf misses
 > it, and a stale `message_keys.auto.h` makes the phone and watch disagree.
@@ -118,26 +112,26 @@ appstore and the phone insist on; `tools/make_menu_icon.py` redraws it.
 [om]: https://open-meteo.com/
 [wmo]: https://open-meteo.com/en/docs#weather_variable_documentation
 
-## Why it is built this way
+## Design notes
 
-**The radio is the battery, not the processor.** Placing a hundred-odd objects
-is a few milliseconds on the 64 MHz core; waking Bluetooth costs orders of
-magnitude more. So the server sends **right ascension and declination**, not
-screen positions — screen positions go stale within minutes as the sky turns,
-sky coordinates never do. The watch fetches **twice a day** and turns the sky
-from its own clock in between, working with the phone in another room.
+**Battery use is dominated by the radio, not the CPU.** Positioning a hundred or
+so objects takes a few milliseconds on the 64 MHz core, while waking Bluetooth
+costs far more. So the server sends **right ascension and declination** instead
+of screen positions. Screen positions go stale within minutes, but sky
+coordinates don't. The watch fetches **twice a day** and rotates the sky using
+its own clock in between, so it keeps working when the phone is out of range.
 
-**None of it is floating point.** A Cortex-M3 has no FPU. The SDK measures a
-full turn in 65536 steps and `ha_skyfield.pebble` sends angles already in those
-units, so they go straight into `sin_lookup`. Altitude comes from
-`atan2_lookup` rather than an arcsine, because the SDK has a table for one and
-not the other — as `bodies.to_altaz` does in Python.
+**No floating point.** The Cortex-M3 has no FPU. The SDK represents a full turn
+as 65536 steps, and `ha_skyfield.pebble` sends angles in those units so they go
+straight into `sin_lookup`. Altitude uses `atan2_lookup` instead of an arcsine
+because the SDK only has a lookup table for atan2. `bodies.to_altaz` does the
+same in Python.
 
 **The payload is about 1.5 kB**: a 17-byte header plus four or five bytes per
-object, split into labelled 512-byte pieces so inbox size and delivery order do
-not matter. Setting *Only these* to a few constellations shrinks it, which is
-the one setting that really affects battery. The last payload is kept in watch
-storage, so a restart draws immediately.
+object, split into numbered 512-byte chunks so inbox size and delivery order
+don't matter. Limiting *Only these* to a few constellations makes it smaller,
+which is the one setting that noticeably affects battery. The last payload is
+saved in watch storage, so the face draws immediately after a restart.
 
 ## What is here
 
@@ -149,13 +143,13 @@ storage, so a restart draws immediately.
 | `src/pkjs/index.js` | the phone's half: fetch, split, send, weather |
 | `src/pkjs/config.js` | the settings page, as plain HTML |
 
-The settings page is hand-written rather than [Clay][clay], which does not build
-for `flint` or `gabbro`. Clay just hands the phone a `data:text/html` URL, so
-doing it by hand costs a page of HTML and leaves no npm dependencies.
+The settings page is hand-written instead of using [Clay][clay], which doesn't
+build for `flint` or `gabbro`. Clay just gives the phone a `data:text/html` URL,
+so doing it by hand is one page of HTML and no npm dependencies.
 
-`projection.c` and `sky_data.c` also compile on a desktop — that is what
-`SKY_HOST` in `sky_trig.h` is for — and the Python tests check them against the
-Python that produced their input (`custom_components/tests/test_watchface.py`,
+`projection.c` and `sky_data.c` also compile on desktop (that's what `SKY_HOST`
+in `sky_trig.h` is for), and the Python tests check them against the Python
+code that generates their input (`custom_components/tests/test_watchface.py`,
 `test_watchface_parser.py`). `main.c` is only checked by building it.
 
 [clay]: https://github.com/pebble/clay

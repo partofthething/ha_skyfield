@@ -13,7 +13,7 @@ on observing the sun.
 |---|---|
 | ![The chart in light mode](screenshot.png) | ![The same chart in dark mode](screenshot_dark.png) |
 
-The card follows your theme, so it draws itself either way.
+The card follows your light or dark theme.
 
 This uses the [skyfield library](https://rhodesmill.org/skyfield/) to do the computations. 
 
@@ -26,8 +26,8 @@ See [`pebble/README.md`](pebble/README.md) for the watch and
 * Install this in your `custom_components` folder (or add the repository to HACS)
   and restart
 * Go to **Settings > Devices & Services > Add Integration** and search for
-  *HA Skyfield*. Everything has a sensible default, so you can simply accept the
-  form; the location starts at your home location.
+  *HA Skyfield*. The defaults are fine, and the location starts at your home
+  location.
 * Add this card to your dashboard:
 ```yaml
 type: custom:skyfield-card
@@ -44,16 +44,19 @@ Optional card configuration:
 * `refresh_interval` seconds between asking the server for new positions (default 600)
 * `redraw_interval` seconds between redraws (default 30)
 
-The settings can be changed in yaml or at any time from the **Configure** button beside
-the integration, and the chart is redrawn as soon as you save them.
+Anything you leave out uses the integration's settings. Those can be changed any
+time from the **Configure** button on the integration, and the chart redraws when
+you save.
 
-The card registers itself as a dashboard resource, so there is normally nothing to
-add by hand. It draws itself as SVG, so it stays sharp at any size and takes its
-colors from your theme, dark mode included.
+The solstice path colors can be changed with the `--skyfield-winter-color` and
+`--skyfield-summer-color` theme variables.
 
-If your dashboard resources are managed in YAML rather than through the UI, Home
-Assistant will not let the integration add to them, and you will see a warning in
-the log saying so. Add it yourself in that case:
+The card registers itself as a dashboard resource, so normally there's nothing to
+add by hand. It's drawn as SVG, so it stays sharp at any size and uses your theme
+colors.
+
+If your dashboard resources are managed in YAML, Home Assistant won't let the
+integration add to them and you'll see a warning in the log. Add it yourself:
 
 ```yaml
 lovelace:
@@ -62,30 +65,23 @@ lovelace:
       type: module
 ```
 
-If a dashboard ever reports `Custom element doesn't exist: skyfield-card`, look in
-the browser console for a `skyfield-card loaded` line. If it is absent the file is
-not reaching the browser; if it is present the card is loaded and the dashboard
-simply asked for it too early, which the resource registration above fixes.
+If a dashboard reports `Custom element doesn't exist: skyfield-card`, check the
+browser console for a `skyfield-card loaded` line. If it's missing, the file isn't
+reaching the browser. If it's there, the dashboard asked for the card before it
+loaded, and adding the resource above fixes it.
 
-The chart is drawn in your browser from the sky coordinates Home Assistant sends
-it. Those only change slowly, so the browser can turn the sky itself as the
-minutes pass — it redraws twice a minute and only asks the server for new
-positions every ten minutes.
+The chart is drawn in the browser from sky coordinates that Home Assistant sends.
+Those change slowly, so the browser rotates the sky itself. It redraws every 30
+seconds and only fetches new positions every ten minutes.
 
+### Migrating from YAML configuration
 
-Anything you leave out follows what the integration is configured with. The
-solstice path colors can be restyled with the `--skyfield-winter-color` and
-`--skyfield-summer-color` theme variables.
-
-### If you already have this configured in YAML
-
-An `ha_skyfield:` block in `configuration.yaml` still works: the first time Home
-Assistant starts with this version it is read once and turned into a
-configuration you can edit in the UI, keeping every setting it had. After that
-the block is no longer read — there is a warning in the log saying so — and it
+An `ha_skyfield:` block in `configuration.yaml` still works. The first time Home
+Assistant starts with this version, it's imported into a UI config entry with the
+same settings. After that the block is ignored (with a warning in the log) and
 can be deleted.
 
-The options were, and the ones in the UI are the same:
+The options are the same in YAML and the UI:
 
 * `show_constellations` enable or disable the constellations (default is True).
 * `show_time` and `show_legend` defaults for the card
@@ -98,8 +94,8 @@ The options were, and the ones in the UI are the same:
 
 ## The old image version
 
-If you would rather have an image than a card for backwards compatibility, there is still
-a camera entity:
+For backwards compatibility there's still a camera entity if you'd rather have an
+image:
 
 ```yaml
 camera:
@@ -107,34 +103,30 @@ camera:
   show_constellations: false
 ```
 
-Then add a picture entity to your GUI with this camera. It is a YAML platform and
-stands on its own — it draws its own sky and needs nothing else set up — so add
-the integration as well if you want the card or the endpoints below. It takes the
-same options listed above, plus:
+Then add a picture entity to your dashboard with this camera. It's a standalone
+YAML platform and doesn't need the integration, but you'll need the integration
+for the card or the endpoints below. It takes the same options as above, plus:
 
-* `image_type` `png` (default), `jpg`, or `svg`. A chart is fine lines on flat
-  color, which is the worst thing to hand a JPEG, so `png` is the one to use.
-* `theme` `light` (default) or `dark`. A picture is painted once and cannot ask
-  who is looking at it, so unlike the card it has to be told.
-* `width` in pixels, 800 by default. The chart is drawn at that size rather than
-  drawn small and stretched.
+* `image_type` `png` (default), `jpg`, or `svg`. JPEG compression smears thin
+  lines, so stick with `png`.
+* `theme` `light` (default) or `dark`. Unlike the card, an image can't follow
+  your theme, so you have to pick one.
+* `width` in pixels, 800 by default.
 
-The integration also serves the chart directly at `/api/ha_skyfield/sky.png` and
-`/api/ha_skyfield/sky.svg`, both taking `?theme=` and the picture one `?width=`.
-There is a sensor platform too, whose state is the Sun's altitude and which
-writes the chart to `www/sun.png` for `/local/sun.png`.
+The integration also serves the chart at `/api/ha_skyfield/sky.png` and
+`/api/ha_skyfield/sky.svg`. Both accept `?theme=`, and the PNG accepts `?width=`.
+There's also a sensor platform whose state is the Sun's altitude. It writes the
+chart to `www/sun.png`, available at `/local/sun.png`.
 
-The card is still the better option where you can use it: it turns the sky in
-your browser without asking the server, follows your theme, and stays sharp at
-any size.
+Use the card if you can. It updates in the browser, follows your theme, and stays
+sharp at any size.
 
 ## Standalone
 
-Beyond the home assistant integration, this also includes the following standalone
-features:
+Outside of Home Assistant, this also includes:
 
-* a **command line tool and small web server** that write the same chart as an SVG
-  file, for a web page or anything else that wants a picture
+* a **command line tool and small web server** that produce the same chart as an
+  SVG file
 * a **Pebble watch face**, in [`pebble/`](pebble/)
 
 
@@ -143,22 +135,20 @@ $ pip install git+https://github.com/partofthething/ha_skyfield
 $ skyfield-sky svg --lat 47.608 --lon -122.335 --tz America/Los_Angeles -o sky.svg
 ```
 
-The first run downloads a 17 MB ephemeris and keeps it in `~/.cache/ha_skyfield`,
-so it is only slow once. The SVG is self-contained — one file, no external CSS,
-no fonts to fetch — and follows the reader's dark mode unless you pin it with
-`--theme light` or `--theme dark`. `--palette` is available from Python if you
-want it to match a site's colors.
+The first run downloads a 17 MB ephemeris to `~/.cache/ha_skyfield`, so only the
+first run is slow. The SVG is a single file with no external CSS or fonts. It
+follows the viewer's dark mode unless you set `--theme light` or `--theme dark`.
+To match a site's colors, pass `palette` to `ha_skyfield.svg.render()` from Python.
 
-For a web page, the simplest thing is usually to redraw a file on a timer and let
-whatever already serves the site hand it out:
+For a website, the easiest option is usually to regenerate the file on a timer
+and let your existing web server serve it:
 
 ```console
 $ skyfield-sky watch --lat 47.608 --lon -122.335 --tz America/Los_Angeles \
       --interval 300 -o /var/www/sky.svg
 ```
 
-Or run the built-in server, which has no dependencies beyond the ones drawing the
-chart already needs:
+Or run the built-in server, which needs no extra dependencies:
 
 ```console
 $ skyfield-sky serve --lat 47.608 --lon -122.335 --tz America/Los_Angeles --port 8099
@@ -166,32 +156,30 @@ $ skyfield-sky serve --lat 47.608 --lon -122.335 --tz America/Los_Angeles --port
 
 | | |
 |---|---|
-| `/` | a page showing the chart, refreshing itself |
+| `/` | a page showing the chart, auto-refreshing |
 | `/sky.svg` | the chart |
-| `/sky.png` | the chart as a picture, for anything that will not take an SVG |
-| `/sky.json` | the sky as data, the same thing the card is sent |
-| `/sky.pebble` | the sky packed small, for the watch face |
+| `/sky.png` | the chart as PNG, for things that don't support SVG |
+| `/sky.json` | the sky data, same as what the card gets |
+| `/sky.pebble` | compact binary data for the watch face |
 
-Every option can be given in the query string — `?lat=51.5&lon=-0.13&tz=Europe/London`,
-`?theme=dark`, `?constellations=Orion,UrsaMajor` — so one server can draw
-anywhere. A misspelled parameter is a 400 rather than a chart quietly drawn for
-the wrong place.
+Any option can be set in the query string, like `?lat=51.5&lon=-0.13&tz=Europe/London`,
+`?theme=dark`, or `?constellations=Orion,UrsaMajor`, so one server can draw any
+location. Unknown parameters return a 400 instead of silently drawing the wrong
+place.
 
-`--public` is for a server open to strangers:
+Use `--public` to run a server for other people:
 
 ```console
 $ skyfield-sky serve --public --port 8099
 ```
 
-It starts with no place of its own, so `--lat` and `--lon` are neither asked for
-nor kept, and a request that says nowhere gets a 400 instead of the sky above
-whoever is running it. Coordinates that do arrive are rounded to two decimals —
-about a kilometre, which no chart of the whole sky can tell from none, and which
-keeps the cache to a few dozen skies rather than one per caller. `examples/` has
-a systemd unit and an Apache vhost for putting one on the open web.
+In public mode the server has no default location, so `--lat` and `--lon` aren't
+used, and a request without coordinates gets a 400 rather than your location.
+Incoming coordinates are rounded to two decimals (about 1 km). That makes no
+visible difference to the chart and keeps the cache small. See `examples/` for a
+systemd unit and Apache vhost for hosting one.
 
-`skyfield-sky png` paints a picture instead, if you need one — that needs Pillow,
-which is the one thing here that is optional:
+`skyfield-sky png` writes a PNG instead. It needs Pillow, which is optional:
 
 ```console
 $ pip install 'ha-skyfield[raster]'
@@ -199,27 +187,26 @@ $ skyfield-sky png --lat 47.608 --lon -122.335 --tz America/Los_Angeles \
       --width 1200 -o sky.png
 ```
 
-`skyfield-sky json` and `skyfield-sky pebble` print the underlying data if you
-would rather draw it yourself. `python -m ha_skyfield` is the same command.
+`skyfield-sky json` and `skyfield-sky pebble` print the raw data if you want to
+draw it yourself. `python -m ha_skyfield` works the same as `skyfield-sky`.
 
 ## Upgrading from 2.x
 
-**matplotlib is gone.** It was the heaviest dependency here by a wide margin, and
-Home Assistant installs everything in `requirements` on setup, so on any system
-without a prebuilt wheel it meant compiling it. The chart is described once and
-then either written out as SVG or painted with Pillow, which Home Assistant
-already installs.
+**matplotlib has been removed.** It was by far the heaviest dependency, and Home
+Assistant installs everything in `requirements` on setup, so systems without a
+prebuilt wheel had to compile it. Charts are now written directly as SVG or drawn
+with Pillow, which Home Assistant already installs.
 
-What this changes:
+What changed:
 
-* The camera still serves a PNG by default and `image_type` still chooses the
-  format, so nothing should need changing. It gained `svg` as an option, and
-  `theme` and `width` alongside.
-* The sensor writes `www/sun.png` as before, at a somewhat different size.
-* `Sky.plot_sky()` and the `plots` module are gone. `ha_skyfield.raster.render()`
-  and `ha_skyfield.svg.render()` replace them.
-* Charts look a little different: they are the card's drawing now, rather than
-  matplotlib's, so they follow the same layout and colors the dashboard uses.
+* The camera still serves PNG by default and `image_type` still picks the format,
+  so existing setups should keep working. It now also supports `svg`, plus new
+  `theme` and `width` options.
+* The sensor still writes `www/sun.png`, at a slightly different size.
+* `Sky.plot_sky()` and the `plots` module are gone. Use `ha_skyfield.raster.render()`
+  or `ha_skyfield.svg.render()` instead.
+* Charts look a little different since they now match the card's layout and
+  colors.
 
 Known Issues:
 
@@ -235,38 +222,33 @@ $ uv venv && uv pip install -e .
 $ cd custom_components && python -m unittest discover -s tests -t .
 ```
 
-The chart is drawn in three languages — Python for files and the server,
-JavaScript for the card, C for the watch — because each has to draw it somewhere
-the others cannot reach. On the Python side, `scene.py` works out where
-everything goes and `styles.py` says what it looks like; `svg.py` writes that
-out and `raster.py` paints it, so the picture and the SVG cannot drift apart.
+The chart is drawn in three languages: Python for files and the server,
+JavaScript for the card, and C for the watch. On the Python side, `scene.py`
+computes where everything goes and `styles.py` defines how it looks. `svg.py` and
+`raster.py` both render from that, so the SVG and PNG output stay in sync.
 
-The three languages are only three views of one chart for as long as they agree,
-so the suite checks that directly rather than trusting it:
+The tests check that the three implementations agree:
 
-* `test_projection.py` reads the card's layout constants out of the JavaScript
-  and compares them to the Python's.
-* `test_svg_matches_card.py` runs the card's own `altAz` under `node` and checks
-  it lands where the Python does.
+* `test_projection.py` reads the card's layout constants from the JavaScript and
+  compares them to the Python ones.
+* `test_svg_matches_card.py` runs the card's `altAz` under `node` and checks it
+  matches the Python.
 * `test_watchface.py` compiles `pebble/src/c/projection.c` with `cc` and checks
-  it lands in the same pixel, to within half of one.
+  it lands within half a pixel of the Python.
 * `test_watchface_parser.py` compiles the watch's payload parser and feeds it
-  what `ha_skyfield.pebble` packs.
-* `test_raster.py` checks the painted chart against the scene it was painted
-  from — that a body lands on its own spot, and that nothing meant to be inside
-  the horizon escapes it.
-* `test_config_flow.py` checks that the form the UI shows offers everything the
-  YAML schema ever did, that every field on it reaches the sky, and that an
-  imported YAML configuration comes out the other side unchanged. The import runs
-  once on somebody's real settings, so there is no second chance at it.
-* `test_platforms.py` builds the Home Assistant entities for real and asks them
-  for a picture. `Camera.__init__` assigns `self.content_type` as an ordinary
-  attribute, so a subclass that makes it a property breaks setup entirely and
-  one that makes it a class attribute has it silently overwritten — neither is
-  visible until something actually constructs the entity.
+  output from `ha_skyfield.pebble`.
+* `test_raster.py` checks the PNG against the scene it came from: bodies land in
+  the right spot and nothing inside the horizon is drawn outside it.
+* `test_config_flow.py` checks that the UI form covers every option the YAML
+  schema had, that every field is actually used, and that importing a YAML config
+  preserves it exactly. The import only runs once on real settings, so it needs
+  to be right.
+* `test_platforms.py` builds the real Home Assistant entities and requests an
+  image. `Camera.__init__` sets `self.content_type` as a plain attribute, so
+  defining it as a property in a subclass breaks setup, and defining it as a
+  class attribute gets silently overwritten. Neither shows up until the entity is
+  actually constructed.
 
-The cross-language ones skip themselves if `node` or a C compiler is missing,
+The cross-language tests skip if `node` or a C compiler is missing,
 `test_raster.py` skips without Pillow, and `test_platforms.py` skips without
 Home Assistant.
-
-
