@@ -21,7 +21,7 @@ dependencies = ["skyfield>=1.49", "numpy"]
 # what the card, the web page and the watch all use -- needs nothing, so this
 # stays out of the way of an install that only wants that.
 [project.optional-dependencies]
-raster = ["pillow>=10.1"]
+raster = ["pillow>=13.0.0"]
 
 [project.urls]
 Homepage = "https://github.com/partofthething/ha_skyfield"
