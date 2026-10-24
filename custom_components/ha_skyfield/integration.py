@@ -183,7 +183,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     The routes stay registered, since they cannot be taken back; they answer 503
     until there is a sky again, which is what a reload does a moment later.
     """
-    hass.data.get(DOMAIN, {}).pop(DATA_SKY, None)
+    sky = hass.data.get(DOMAIN, {}).pop(DATA_SKY, None)
+    if sky is not None:
+        sky.close()
     return True
 
 

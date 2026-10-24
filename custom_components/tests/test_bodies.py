@@ -28,7 +28,25 @@ class TestSky(unittest.TestCase):
         # alias that modern tzdata packages leave out
         sky = bodies.Sky((50.0, 50.0), PACIFIC, constellation_list="CanisMajor")
         sky.load()
+        self.addCleanup(sky.close)
         self.assertGreater(len(sky._constellations), 0)
+
+    def test_close_leaves_nothing_open(self):
+        """A sky that is done with the sky has to give back its ephemeris file."""
+        sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=False)
+        sky.load()
+        self.addCleanup(sky.close)
+        file = sky._planets.spk.daf.file
+        sky.close()
+        self.assertTrue(file.closed)
+        self.assertIsNone(sky._planets)
+
+    def test_closing_twice_is_harmless(self):
+        sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=False)
+        sky.load()
+        self.addCleanup(sky.close)
+        sky.close()
+        sky.close()
 
 
 class TestSkyModel(unittest.TestCase):
@@ -39,6 +57,7 @@ class TestSkyModel(unittest.TestCase):
         cls.when = datetime.datetime(2026, 8, 2, 22, 30, tzinfo=ZoneInfo(PACIFIC))
         cls.sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
         cls.sky.load()
+        cls.addClassCleanup(cls.sky.close)
         cls.model = cls.sky.sky_model(cls.when)
 
     def test_is_json(self):
@@ -135,6 +154,7 @@ class TestTimeZones(unittest.TestCase):
     def setUpClass(cls):
         cls.sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=False)
         cls.sky.load()
+        cls.addClassCleanup(cls.sky.close)
 
     def _pretend_the_machine_is_in(self, zone):
         """Move the machine's clock zone for the rest of one test."""

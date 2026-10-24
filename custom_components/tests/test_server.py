@@ -76,6 +76,7 @@ class TestServing(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.httpd = server.serve(*SEATTLE, PACIFIC, host="127.0.0.1", port=0)
+        cls.addClassCleanup(cls.httpd.cache.close)
         cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
         cls.thread.start()
         cls.port = cls.httpd.server_address[1]
@@ -169,6 +170,7 @@ class TestPublicServing(unittest.TestCase):
         cls.httpd = server.serve(
             *SEATTLE, PACIFIC, host="127.0.0.1", port=0, public=True
         )
+        cls.addClassCleanup(cls.httpd.cache.close)
         cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
         cls.thread.start()
         cls.port = cls.httpd.server_address[1]
@@ -228,6 +230,7 @@ class TestCache(unittest.TestCase):
 
     def test_the_same_options_reuse_the_same_sky(self):
         cache = SpyCache()
+        self.addCleanup(cache.close)
         options = server.default_options(*SEATTLE, PACIFIC)
         options.pop("theme")
         options.pop("title")
@@ -237,6 +240,7 @@ class TestCache(unittest.TestCase):
 
     def test_different_options_get_their_own(self):
         cache = SpyCache()
+        self.addCleanup(cache.close)
         options = server.default_options(*SEATTLE, PACIFIC)
         options.pop("theme")
         options.pop("title")
@@ -254,6 +258,21 @@ class TestCache(unittest.TestCase):
         options = server.default_options(*SEATTLE, PACIFIC)
         for name in server.DRAWING_OPTIONS:
             self.assertIn(name, options)
+
+    def test_an_evicted_sky_closes_its_ephemeris(self):
+        """A sky pushed out of the cache takes its open file with it."""
+        cache = SpyCache(size=1)
+        self.addCleanup(cache.close)
+        options = server.default_options(*SEATTLE, PACIFIC)
+        options.pop("theme")
+        options.pop("title")
+        first = cache._sky(options)
+        file = first._planets.spk.daf.file
+        self.assertFalse(file.closed)
+        second = cache._sky({**options, "north_up": True})
+        self.assertIsNone(first._planets)
+        self.assertTrue(file.closed)
+        self.assertFalse(second._planets.spk.daf.file.closed)
 
 
 class SpyCache(server.SkyCache):

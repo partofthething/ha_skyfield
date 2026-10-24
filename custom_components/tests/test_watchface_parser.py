@@ -61,6 +61,7 @@ class TestConstantsMatch(unittest.TestCase):
     def test_the_watch_has_room_for_the_usual_sky(self):
         sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
         sky.load()
+        self.addCleanup(sky.close)
         self.assertLess(
             len(pebble.pack(sky.sky_model())), c_constant("SKY_MAX_PAYLOAD")
         )
@@ -110,9 +111,10 @@ class TestTheWatchReadsWhatPythonWrites(unittest.TestCase):
             raise AssertionError(f"the parser did not compile:\n{compiled.stderr}")
 
         cls.when = datetime.datetime(2026, 8, 2, 22, 30, tzinfo=ZoneInfo(PACIFIC))
-        sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
-        sky.load()
-        cls.model = sky.sky_model(cls.when)
+        cls.sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
+        cls.sky.load()
+        cls.addClassCleanup(cls.sky.close)
+        cls.model = cls.sky.sky_model(cls.when)
         cls.payload = pebble.pack(cls.model)
         cls.read = cls._parse(cls.payload)
 

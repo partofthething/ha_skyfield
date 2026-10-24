@@ -24,6 +24,7 @@ class TestRendering(unittest.TestCase):
         cls.when = datetime.datetime(2026, 8, 2, 22, 30, tzinfo=ZoneInfo(PACIFIC))
         cls.sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
         cls.sky.load()
+        cls.addClassCleanup(cls.sky.close)
         cls.model = cls.sky.sky_model(cls.when)
         cls.drawing = svg.render(cls.model)
         cls.root = ET.fromstring(cls.drawing)
@@ -129,6 +130,7 @@ class TestOptions(unittest.TestCase):
         cls.when = datetime.datetime(2026, 8, 2, 22, 30, tzinfo=ZoneInfo(PACIFIC))
         cls.sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
         cls.sky.load()
+        cls.addClassCleanup(cls.sky.close)
         cls.model = cls.sky.sky_model(cls.when)
 
     def test_the_same_model_always_draws_the_same_picture(self):
@@ -219,6 +221,7 @@ class TestWithoutConstellations(unittest.TestCase):
     def test_draws_without_them(self):
         sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=False)
         sky.load()
+        self.addCleanup(sky.close)
         drawing = svg.render(sky.sky_model())
         self.assertIn('class="stars" d=""', drawing)
         self.assertEqual(ET.fromstring(drawing).tag, f"{SVG}svg")

@@ -292,7 +292,10 @@ def _serve(args) -> int:
         port,
     )
     with httpd:
-        httpd.serve_forever()
+        try:
+            httpd.serve_forever()
+        finally:
+            httpd.cache.close()
     return 0
 
 
@@ -308,10 +311,13 @@ def _keep_drawing(args) -> int:
         raise ValueError("redrawing on a timer needs a file to write; pass -o")
 
     sky = _sky(args)
-    while True:
-        _write(args, _draw(sky, args))
-        _LOGGER.debug("Drew %s", args.output)
-        time.sleep(args.interval)
+    try:
+        while True:
+            _write(args, _draw(sky, args))
+            _LOGGER.debug("Drew %s", args.output)
+            time.sleep(args.interval)
+    finally:
+        sky.close()
 
 
 if __name__ == "__main__":  # pragma: no cover

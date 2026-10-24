@@ -27,6 +27,7 @@ class TestPacking(unittest.TestCase):
         cls.when = datetime.datetime(2026, 8, 2, 22, 30, tzinfo=ZoneInfo(PACIFIC))
         cls.sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
         cls.sky.load()
+        cls.addClassCleanup(cls.sky.close)
         cls.model = cls.sky.sky_model(cls.when)
         cls.payload = pebble.pack(cls.model)
         cls.read = pebble.unpack(cls.payload)
@@ -193,6 +194,7 @@ class TestSize(unittest.TestCase):
     def test_the_usual_sky_fits_in_one_inbox(self):
         sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
         sky.load()
+        self.addCleanup(sky.close)
         self.assertLess(len(pebble.pack(sky.sky_model())), APP_MESSAGE_BUDGET)
 
     def test_a_few_constellations_are_far_smaller(self):
@@ -204,8 +206,10 @@ class TestSize(unittest.TestCase):
         """
         whole = bodies.Sky(SEATTLE, PACIFIC, show_constellations=True)
         whole.load()
+        self.addCleanup(whole.close)
         few = bodies.Sky(SEATTLE, PACIFIC, constellation_list=["Orion", "UrsaMajor"])
         few.load()
+        self.addCleanup(few.close)
 
         self.assertLess(
             len(pebble.pack(few.sky_model())),

@@ -58,6 +58,19 @@ class SkyCache:
         self._skies = OrderedDict()
         self._lock = threading.Lock()
 
+    def close(self):
+        """
+        Put every sky the cache is keeping away.
+
+        Each sky holds the ephemeris file open for as long as it answers
+        questions, so a cache that is being shut down has to close them rather
+        than leave the files to the garbage collector.
+        """
+        with self._lock:
+            for sky in self._skies.values():
+                sky.close()
+            self._skies.clear()
+
     def model(self, options: dict) -> dict:
         """Describe the sky for one set of options."""
         with self._lock:
@@ -85,7 +98,8 @@ class SkyCache:
 
         self._skies[key] = sky
         if len(self._skies) > self._size:
-            self._skies.popitem(last=False)
+            # the oldest sky goes, and its ephemeris file goes with it
+            self._skies.popitem(last=False)[1].close()
         return sky
 
 
@@ -443,9 +457,14 @@ def serve(
     defaults = default_options(latitude, longitude, timezone)
     defaults.update({k: v for k, v in overrides.items() if v is not None})
 
+    cache = SkyCache(directory)
     handler = type(
         "BoundSkyHandler",
         (SkyHandler,),
-        {"cache": SkyCache(directory), "defaults": defaults, "public": public},
+        {"cache": cache, "defaults": defaults, "public": public},
     )
-    return ThreadingHTTPServer((host, port), handler)
+    httpd = ThreadingHTTPServer((host, port), handler)
+    # the skies the server sets up are its to put away, so the caller who stops
+    # it can find them
+    httpd.cache = cache
+    return httpd

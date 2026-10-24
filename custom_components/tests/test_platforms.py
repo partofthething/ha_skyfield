@@ -98,6 +98,7 @@ class TestTheCameraDrawsSomething(unittest.TestCase):
     def setUpClass(cls):
         cls.camera = build_camera()
         cls.camera.sky.load()
+        cls.addClassCleanup(cls.camera.sky.close)
         cls.camera._loaded = True
 
     def test_a_png_really_is_a_png(self):
@@ -189,6 +190,7 @@ class TestTheSensor(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as configdir:
             sensor = SkyField(SEATTLE[0], SEATTLE[1], PACIFIC, configdir, ".")
+            self.addCleanup(sensor.sky.close)
             sensor.update()
 
             written = os.path.join(configdir, "www", IMAGE_FILENAME)

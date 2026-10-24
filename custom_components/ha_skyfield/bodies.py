@@ -84,6 +84,26 @@ class Sky:  # pylint: disable=too-many-instance-attributes
             self._load_sky_data(tmpdir)
             self._run_initial_computations()
 
+    def close(self):
+        """
+        Put the sky away.
+
+        The ephemeris is a file that skyfield keeps open for as long as the sky
+        answers questions, so a sky that will not be asked any more has to say
+        so itself; left to itself the file is only closed when the garbage
+        collector gets round to it, and says a word about it when it does.
+        Safe to call more than once, and on a sky that was never loaded.
+        """
+        if self._planets is not None:
+            self._planets.close()
+            self._planets = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
     def _load_sky_data(self, tmpdir):
         """
         Load the primary input data for skyfield.
