@@ -216,7 +216,8 @@ module.exports = function page(settings) {
       settings.showHeart !== false,
       "Whatever the watch last measured by itself. This never asks the sensor " +
         "to run more often than your health settings already have it running, " +
-        "so it costs no battery and can be a few minutes old."
+        "so it costs no battery. It shows the last reading from the past half " +
+        "hour, so it can be a few minutes old."
     ),
     toggle(
       "showWeather",

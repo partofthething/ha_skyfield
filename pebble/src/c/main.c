@@ -907,6 +907,77 @@ static void draw_current_weather_icon(GContext *ctx, GPoint at) {
 
 #endif /* PBL_RECT */
 
+#if defined(PBL_HEALTH) && defined(PBL_RECT)
+/*
+ * The last heart rate the watch took of its own accord, and when.
+ *
+ * Peeking once a minute is not enough on its own: the firmware only reports a
+ * "current" heart rate for a short while after the sensor last ran, so a face
+ * that looks once a minute keeps landing in the gap between one reading going
+ * stale and the next being taken. So the face remembers the last good one,
+ * hears about new ones as they arrive, and on a cold start goes looking in the
+ * minute history.
+ *
+ * None of this asks the sensor to run. That would be
+ * health_service_set_heart_rate_sample_period, and this face deliberately
+ * never calls it: a watch face is not worth a shortened day of battery, and
+ * the firmware's own rate is what the wearer chose in the health settings.
+ */
+#define HEART_STALE_SECONDS (30 * 60)
+#define HEART_HISTORY_MINUTES 30
+
+static int s_bpm;
+static time_t s_bpm_taken;
+
+static bool heart_is_fresh(void) {
+  return s_bpm > 0 && time(NULL) - s_bpm_taken < HEART_STALE_SECONDS;
+}
+
+static void peek_heart_rate(void) {
+  HealthValue bpm = health_service_peek_current_value(HealthMetricHeartRateBPM);
+  if (bpm > 0) {
+    s_bpm = (int)bpm;
+    s_bpm_taken = time(NULL);
+  }
+}
+
+/* the newest minute in recent history that has a heart rate in it */
+static void recall_heart_rate(void) {
+  static HealthMinuteData minutes[HEART_HISTORY_MINUTES];
+  time_t end = time(NULL);
+  time_t start = end - HEART_HISTORY_MINUTES * SECONDS_PER_MINUTE;
+  uint32_t got = health_service_get_minute_history(minutes, HEART_HISTORY_MINUTES,
+                                                   &start, &end);
+  for (int i = (int)got - 1; i >= 0; i--) {
+    if (!minutes[i].is_invalid && minutes[i].heart_rate_bpm > 0) {
+      time_t taken = start + i * SECONDS_PER_MINUTE;
+      if (taken > s_bpm_taken) {
+        s_bpm = minutes[i].heart_rate_bpm;
+        s_bpm_taken = taken;
+      }
+      return;
+    }
+  }
+}
+
+/*
+ * A new reading only redraws the sky if there was no number showing before;
+ * otherwise it waits for the next minute, so a workout's once-a-second
+ * readings do not redraw every star once a second.
+ */
+static void health_changed(HealthEventType event, void *context) {
+  (void)context;
+  if (event != HealthEventHeartRateUpdate) {
+    return;
+  }
+  bool was_showing = heart_is_fresh();
+  peek_heart_rate();
+  if (s_show_heart && !was_showing && heart_is_fresh() && s_chart) {
+    layer_mark_dirty(s_chart);
+  }
+}
+#endif
+
 /*
  * Steps and battery along the top, heart rate and weather along the bottom.
  *
@@ -947,20 +1018,15 @@ static void draw_status(GContext *ctx, GRect bounds) {
                  GTextAlignmentLeft);
   }
 
-  /*
-   * The last heart rate the watch took of its own accord.
-   *
-   * peek_current_value only reads what is already there. The call that would
-   * make the sensor run more often is health_service_set_heart_rate_sample_period,
-   * and this face deliberately never makes it: a watch face is not worth a
-   * shortened day of battery, and the firmware's own rate is what the wearer
-   * chose in the health settings.
-   */
+  /* the last heart rate the watch took of its own accord; see heart_is_fresh */
   if (s_show_heart) {
-    int bpm = (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
-    if (bpm > 0) {
+    peek_heart_rate();
+    if (!heart_is_fresh()) {
+      recall_heart_rate();
+    }
+    if (heart_is_fresh()) {
       static char beats[8];
-      snprintf(beats, sizeof(beats), "%d", bpm);
+      snprintf(beats, sizeof(beats), "%d", s_bpm);
       draw_reading(ctx, bottom, draw_heart_icon, HEART_W, ICON_H, beats, pale,
                    GTextAlignmentLeft);
     }
@@ -1139,6 +1205,9 @@ static void init(void) {
   }
 
   tick_timer_service_subscribe(REDRAW_UNIT, handle_tick);
+#if defined(PBL_HEALTH) && defined(PBL_RECT)
+  health_service_events_subscribe(health_changed, NULL);
+#endif
 
   if (the_sky_is_stale()) {
     ask_for_the_sky();
@@ -1147,6 +1216,9 @@ static void init(void) {
 
 static void deinit(void) {
   tick_timer_service_unsubscribe();
+#if defined(PBL_HEALTH) && defined(PBL_RECT)
+  health_service_events_unsubscribe();
+#endif
   window_destroy(s_window);
 }
 

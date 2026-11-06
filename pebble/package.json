@@ -1,7 +1,7 @@
 {
   "name": "skyfield",
   "author": "Nick Touran",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "keywords": [
     "pebble-app",
     "astronomy"
@@ -16,6 +16,20 @@
       "configurable",
       "location",
       "health"
+    ],
+    "usesPermissions": [
+      "Location",
+      "LocalNetwork",
+      "Health",
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "skyfield.partofthething.com",
+            "api.open-meteo.com"
+          ]
+        }
+      }
     ],
     "targetPlatforms": [
       "aplite",
