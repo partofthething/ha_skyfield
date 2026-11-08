@@ -250,6 +250,15 @@ class TestTheTranslations(unittest.TestCase):
             with self.subTest(section=section):
                 self.assertEqual(set(labelled), options)
 
+    def test_the_sensors_are_named_for_the_body_they_follow(self):
+        from ha_skyfield.const import POSITION_KINDS
+
+        names = self.strings["entity"]["sensor"]
+        self.assertEqual(set(names), set(POSITION_KINDS))
+        for kind in POSITION_KINDS:
+            with self.subTest(kind=kind):
+                self.assertIn("{body}", names[kind]["name"])
+
 
 if __name__ == "__main__":
     unittest.main()

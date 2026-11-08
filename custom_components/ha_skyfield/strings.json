@@ -58,5 +58,15 @@
         }
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "altitude": {
+        "name": "{body} altitude"
+      },
+      "azimuth": {
+        "name": "{body} azimuth"
+      }
+    }
   }
 }
