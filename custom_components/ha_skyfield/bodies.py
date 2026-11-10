@@ -315,6 +315,27 @@ class Sky:  # pylint: disable=too-many-instance-attributes
         )
         return float(90 - zenith_angle)
 
+    def body_positions(self, when=None):
+        """
+        Where each chosen body is, as compass azimuth and altitude in degrees.
+
+        Azimuth is measured clockwise from north, and altitude is degrees above
+        the horizon, negative once the body has set. Keyed by the body's label.
+        This is the cheap question the sensor entities ask once a minute: it
+        skips the constellations and the Sun's daily paths that building the
+        whole sky model would work out.
+        """
+        obs_time = self.to_time(self.local_time(when))
+        observer = self.observer_at(obs_time)
+        positions = {}
+        for point in self._points:
+            azimuth, zenith_angle = point.altaz(observer)
+            positions[point.label] = {
+                "azimuth": round(float(np.degrees(azimuth)), DEGREE_PLACES),
+                "altitude": round(float(90 - zenith_angle), DEGREE_PLACES),
+            }
+        return positions
+
 
 class BodyPath:
     """A line that some Body will travel on on some given day"""
@@ -364,6 +385,10 @@ class Point:
         self.size = size
         self._body = body
         self._sky = sky
+
+    def altaz(self, observer):
+        """Azimuth in radians and degrees away from straight up, as Sky.observe."""
+        return self._sky.observe(observer, self._body)
 
     def describe(self, observer):
         """

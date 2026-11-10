@@ -30,7 +30,7 @@ from homeassistant.components import frontend
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
@@ -57,6 +57,9 @@ _LOGGER = logging.getLogger(__name__)
 # have to look the sky up rather than hold on to one.
 DATA_SKY = "sky"
 DATA_SERVING = "serving"
+
+# the sensors for where each body is; see sensor.py
+PLATFORMS = [Platform.SENSOR]
 
 CARD_FILENAME = "skyfield-card.js"
 CARD_PATH = pathlib.Path(__file__).parent / "frontend" / CARD_FILENAME
@@ -167,6 +170,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             CARD_URL,
         )
 
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_options_changed))
     return True
 
@@ -178,11 +182,13 @@ async def _options_changed(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
-    Put the sky away.
+    Put the sky away, and the sensors that read from it.
 
     The routes stay registered, since they cannot be taken back; they answer 503
     until there is a sky again, which is what a reload does a moment later.
     """
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
     sky = hass.data.get(DOMAIN, {}).pop(DATA_SKY, None)
     if sky is not None:
         sky.close()

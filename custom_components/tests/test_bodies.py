@@ -10,6 +10,7 @@ from ha_skyfield import bodies, projection
 
 SEATTLE = (47.608, -122.335)
 PACIFIC = "America/Los_Angeles"
+PACIFIC_ZONE = ZoneInfo(PACIFIC)
 
 
 def zoneless(*when):
@@ -20,6 +21,70 @@ def zoneless(*when):
     are deliberately naive rather than an oversight.
     """
     return datetime.datetime(*when)
+
+
+class TestBodyPositions(unittest.TestCase):
+    """
+    The numbers behind the altitude and azimuth sensors.
+
+    Checked against skyfield's own altaz(), which no code here is involved in,
+    and against the geometry of the solstice Sun, which no ephemeris is.
+    """
+
+    WHEN = datetime.datetime(2026, 6, 21, 12, 0, tzinfo=ZoneInfo("UTC"))
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sky = bodies.Sky(SEATTLE, PACIFIC, show_constellations=False)
+        cls.sky.load()
+        cls.addClassCleanup(cls.sky.close)
+
+    def test_every_body_is_reported_by_label(self):
+        positions = self.sky.body_positions(self.WHEN)
+        self.assertEqual(list(positions), [label for label, *_rest in bodies.BODIES])
+
+    def test_only_the_chosen_bodies_are_reported(self):
+        sky = bodies.Sky(
+            SEATTLE, PACIFIC, show_constellations=False, planet_list=["Mars", "Moon"]
+        )
+        sky.load()
+        self.addCleanup(sky.close)
+        self.assertEqual(set(sky.body_positions(self.WHEN)), {"Mars", "Moon"})
+
+    def test_it_agrees_with_skyfields_own_altaz(self):
+        from skyfield.api import wgs84
+
+        observer = (self.sky._planets["earth"] + wgs84.latlon(*SEATTLE)).at(
+            self.sky.to_time(self.WHEN)
+        )
+        for label, _key, _color, _size in bodies.BODIES:
+            body = self.sky._planets[dict((b[0], b[1]) for b in bodies.BODIES)[label]]
+            alt, az, _distance = observer.observe(body).apparent().altaz()
+            mine = self.sky.body_positions(self.WHEN)[label]
+            with self.subTest(body=label):
+                # apparent() adds aberration and light bending, up to ~20
+                # arcseconds, which body_positions leaves out on purpose
+                self.assertAlmostEqual(mine["altitude"], alt.degrees, delta=0.02)
+                diff = (mine["azimuth"] - az.degrees + 180) % 360 - 180
+                self.assertLess(abs(diff), 0.02)
+
+    def test_the_solstice_sun_at_noon_is_where_geometry_says(self):
+        """Altitude 90 - latitude + 23.44 degrees, due south, at local solar noon."""
+        # solar noon in Seattle is about 13:09 PDT on the solstice, 20:09 UTC
+        noon = datetime.datetime(2026, 6, 21, 20, 9, tzinfo=ZoneInfo("UTC"))
+        sun = self.sky.body_positions(noon)["Sun"]
+        self.assertAlmostEqual(sun["altitude"], 90 - SEATTLE[0] + 23.44, delta=0.15)
+        self.assertAlmostEqual(sun["azimuth"], 180, delta=2)
+
+    def test_the_midnight_sun_is_below_the_horizon(self):
+        night = datetime.datetime(2026, 6, 21, 0, 0, tzinfo=PACIFIC_ZONE)
+        self.assertLess(self.sky.body_positions(night)["Sun"]["altitude"], 0)
+
+    def test_azimuth_is_a_compass_bearing(self):
+        for when in (self.WHEN, self.WHEN + datetime.timedelta(hours=9)):
+            for position in self.sky.body_positions(when).values():
+                self.assertGreaterEqual(position["azimuth"], 0)
+                self.assertLess(position["azimuth"], 360)
 
 
 class TestSky(unittest.TestCase):

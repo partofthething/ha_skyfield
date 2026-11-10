@@ -74,6 +74,15 @@ The chart is drawn in the browser from sky coordinates that Home Assistant sends
 Those change slowly, so the browser rotates the sky itself. It redraws every 30
 seconds and only fetches new positions every ten minutes.
 
+### Sensors
+
+Setting up the integration also adds two sensors for each body on the chart: its
+altitude (degrees above the horizon, negative once it has set) and its azimuth
+(degrees clockwise from north, so 90 is east and 180 is south). They update once
+a minute and follow the **Planets** option, so a body you take off the chart has
+no sensors either. Use them in automations, templates, or any other card, for
+example `sensor.ha_skyfield_mars_altitude` above 0 to know when Mars is up.
+
 ### Migrating from YAML configuration
 
 An `ha_skyfield:` block in `configuration.yaml` still works. The first time Home

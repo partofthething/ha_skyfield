@@ -202,5 +202,80 @@ class TestTheSensor(unittest.TestCase):
             self.assertIsInstance(sensor.state, float)
 
 
+@unittest.skipUnless(Camera, "the entities need Home Assistant installed")
+class TestThePositionSensors(unittest.IsolatedAsyncioTestCase):
+    """Two sensors per body, and none left behind for a body taken off the chart."""
+
+    async def _set_up(self, positions, registered):
+        from ha_skyfield import sensor
+        from ha_skyfield.const import DOMAIN
+        from ha_skyfield.integration import DATA_SKY
+
+        sky = mock.Mock()
+        sky.body_positions.return_value = positions
+        hass = mock.Mock()
+        hass.data = {DOMAIN: {DATA_SKY: sky}}
+
+        async def run(job, *args):
+            return job(*args)
+
+        hass.async_add_executor_job = run
+        entry = mock.Mock(entry_id="abc", domain=DOMAIN)
+        entities = mock.Mock()
+        registry = mock.Mock()
+        with (
+            mock.patch.object(sensor, "DataUpdateCoordinator") as coordinator,
+            mock.patch.object(sensor.er, "async_get", return_value=registry),
+            mock.patch.object(
+                sensor.er, "async_entries_for_config_entry", return_value=registered
+            ),
+        ):
+            coordinator.return_value.async_config_entry_first_refresh = mock.AsyncMock()
+            coordinator.return_value.data = positions
+            await sensor.async_setup_entry(hass, entry, entities)
+        return list(entities.call_args.args[0]), registry
+
+    @staticmethod
+    def _registered(*unique_ids):
+        return [
+            mock.Mock(domain="sensor", unique_id=uid, entity_id=f"sensor.{uid}")
+            for uid in unique_ids
+        ]
+
+    async def test_each_body_gets_an_altitude_and_an_azimuth(self):
+        positions = {
+            "Sun": {"altitude": 10.0, "azimuth": 90.0},
+            "Mars": {"altitude": -5.0, "azimuth": 270.0},
+        }
+        sensors, registry = await self._set_up(positions, [])
+        self.assertEqual(
+            sorted(s.unique_id for s in sensors),
+            [
+                "abc_mars_altitude",
+                "abc_mars_azimuth",
+                "abc_sun_altitude",
+                "abc_sun_azimuth",
+            ],
+        )
+        values = {s.unique_id: s.native_value for s in sensors}
+        self.assertEqual(values["abc_mars_altitude"], -5.0)
+        self.assertEqual(values["abc_sun_azimuth"], 90.0)
+        registry.async_remove.assert_not_called()
+
+    async def test_a_body_taken_off_the_chart_loses_its_registry_entries(self):
+        positions = {"Sun": {"altitude": 10.0, "azimuth": 90.0}}
+        registered = self._registered(
+            "abc_sun_altitude",
+            "abc_sun_azimuth",
+            "abc_mars_altitude",
+            "abc_mars_azimuth",
+        )
+        _sensors, registry = await self._set_up(positions, registered)
+        removed = sorted(c.args[0] for c in registry.async_remove.call_args_list)
+        self.assertEqual(
+            removed, ["sensor.abc_mars_altitude", "sensor.abc_mars_azimuth"]
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

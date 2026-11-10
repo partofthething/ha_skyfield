@@ -22,6 +22,10 @@ CONF_CONSTELLATION_LIST = "constellations_list"
 CONF_NORTH_UP = "north_up"
 CONF_HORIZONTAL_FLIP = "horizontal_flip"
 
+# the two sensors each body gets; these are also the keys of their names in
+# strings.json
+POSITION_KINDS = ("altitude", "azimuth")
+
 # What the integration does with no opinion expressed. The location is not here
 # because its default is wherever Home Assistant has been told home is.
 #
